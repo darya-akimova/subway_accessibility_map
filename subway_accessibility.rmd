@@ -465,23 +465,23 @@ nyc_loc_full_join %>%
 
 
 all.distance <- nyc_loc_full_join %>% 
-  group_by(loc_id) %>% 
+  select(-c(station_id, routes)) %>% 
+  distinct() %>% 
+  group_by(loc_id, borough, latitude, longitude) %>% 
   summarize(
     nearest.stat = min(dist.to.stat),
     mean.dist = mean(dist.to.stat),
     med.dist = median(dist.to.stat)
     ) %>% 
-  ungroup() %>% 
-  inner_join(nyc_loc_full_join %>% select(loc_id, borough:longitude), by = "loc_id") %>% 
-  distinct()
+  ungroup() 
 all.distance %>% 
-  select(loc_id:med.dist) %>% 
+  select(loc_id, nearest.stat:med.dist) %>% 
   gather(key = "Dist.type", value = "Distance", -loc_id) %>% 
   ggplot(aes(Distance)) +
   geom_histogram(bins = 50) +
   facet_wrap(~ Dist.type, nrow = 2)
 all.distance %>% 
-  select(loc_id, mean.dist:med.dist) %>% 
+  select(loc_id, nearest.stat:med.dist) %>% 
   gather(key = "Dist.type", value = "Distance", -loc_id) %>% 
   ggplot(aes(Distance)) +
   geom_histogram(bins = 50) +
@@ -495,17 +495,17 @@ all.distance %>%
 
 ada.distance <- nyc_loc_full_join %>% 
   filter(ada) %>% 
-  group_by(loc_id) %>% 
+  select(-c(station_id, routes)) %>% 
+  distinct() %>% 
+  group_by(loc_id, borough, latitude, longitude) %>% 
   summarize(
     nearest.ada.stat = min(dist.to.stat),
     mean.ada.stat = mean(dist.to.stat),
     med.ada.stat = median(dist.to.stat)
     ) %>% 
-  ungroup() %>% 
-  inner_join((nyc_loc_full_join %>% select(loc_id, borough:longitude)), by = "loc_id") %>% 
-  distinct()
+  ungroup()
 ada.distance %>% 
-  select(loc_id:med.ada.stat) %>% 
+  select(loc_id, nearest.ada.stat:med.ada.stat) %>% 
   gather(key = "Dist.type", value = "Distance", -loc_id) %>% 
   ggplot(aes(Distance)) +
   geom_histogram(bins = 50) +
@@ -522,8 +522,40 @@ ada.distance %>%
   ggplot(aes(Distance)) +
   geom_histogram(bins = 50) +
   facet_wrap(Dist.type ~ borough)
-rm(nyc_loc_full_join, p1, p2, dist.to.stat)
-gc()
+### top 5
+all.top5.distance <- nyc_loc_full_join %>% 
+  select(-c(station_id, routes)) %>% 
+  distinct() %>% 
+  group_by(loc_id, borough, latitude, longitude) %>% 
+  top_n(-5, dist.to.stat) %>% 
+  summarize(
+    mean.top5.all = mean(dist.to.stat),
+    med.top5.all = median(dist.to.stat)
+  ) %>% 
+  ungroup()
+ada.top5.distance <- nyc_loc_full_join %>% 
+  filter(ada) %>% 
+  select(-c(station_id, routes)) %>% 
+  distinct() %>% 
+  group_by(loc_id, borough, latitude, longitude) %>% 
+  top_n(-5, dist.to.stat) %>% 
+  summarize(
+    mean.top5.ada = mean(dist.to.stat),
+    med.top5.ada = median(dist.to.stat)
+  ) %>% 
+  ungroup()
+all.top5.distance %>% 
+  select(loc_id, mean.top5.all:med.top5.all) %>% 
+  gather(key = "Dist.type", value = "Distance", -loc_id) %>% 
+  ggplot(aes(Distance)) +
+  geom_histogram(bins = 100) +
+  facet_wrap(~Dist.type)
+ada.top5.distance %>% 
+  select(loc_id, mean.top5.ada:med.top5.ada) %>% 
+  gather(key = "Dist.type", value = "Distance", -loc_id) %>% 
+  ggplot(aes(Distance)) +
+  geom_histogram(bins = 100) +
+  facet_wrap(~Dist.type)
 ```
 
 ####Plots of the results
@@ -559,6 +591,19 @@ ada.distance %>%
   theme(panel.background = element_rect(fill = 'grey50')) +
   coord_quickmap() +
   ggtitle("Direct distance to nearest ADA-Accessible subway station from point in NYC")
+all.top5.distance %>% 
+  ggplot(aes(x = longitude, y = latitude, color = mean.top5.all)) +
+  geom_point(size = 0.2, alpha = 0.2) +
+  scale_color_viridis(option = "B") +
+  theme(panel.background = element_rect(fill = 'grey50')) +
+  coord_quickmap()
+ada.top5.distance %>% 
+  ggplot(aes(x = longitude, y = latitude, color = mean.top5.ada)) +
+  geom_point(size = 0.2, alpha = 0.2) +
+  scale_color_viridis(option = "B") +
+  theme(panel.background = element_rect(fill = 'grey50')) +
+  coord_quickmap()
+
 
 ggmap(nyc_map) +
   geom_point(data = all.distance, aes(x = longitude + 0.002, y = latitude - 0.002, color = mean.dist), size = 0.4, alpha = 0.5) +
@@ -575,8 +620,18 @@ Unsurprisingly, some areas are just far from any subway stations and that carrie
 
 ```{r combining_distances, comment=NA}
 dist.merge <- all.distance %>% 
-  inner_join(ada.distance %>% select(-(borough:longitude)), by = "loc_id") %>% 
-  select(loc_id, borough:longitude, everything())
+  inner_join(
+    ada.distance %>% select(-(borough:longitude)), 
+    by = "loc_id"
+    ) %>% 
+  inner_join(
+    all.top5.distance %>% select(-(borough:longitude)),
+    by = "loc_id"
+  ) %>% 
+  inner_join(
+    ada.top5.distance %>% select(-(borough:longitude)),
+    by = "loc_id"
+  )
 glimpse(dist.merge)
 # sanity checks for joining:
 sapply(all.distance, anyNA)
@@ -594,9 +649,15 @@ dist.merge <- dist.merge %>%
     any.vs.ada.mean.ratio = mean.ada.stat / mean.dist,
     # repeat for med
     any.vs.ada.med.dist = med.ada.stat - med.dist,
-    any.vs.ada.med.ratio = med.ada.stat / med.dist
+    any.vs.ada.med.ratio = med.ada.stat / med.dist,
+    # repeat for closest 5 stations means
+    top5.any.vs.ada.mean.dist = mean.top5.ada - mean.top5.all,
+    top5.any.vs.ada.mean.ratio = mean.top5.ada / mean.top5.all,
+    # repeat for closes 5 station medians
+    top5.any.vs.ada.med.dist = med.top5.ada - med.top5.all,
+    top5.any.vs.ada.med.ratio = med.top5.ada / med.top5.all
     ) %>% 
-  select(loc_id:longitude, starts_with("any.vs.ada"))
+  select(loc_id:longitude, starts_with("any.vs.ada"), starts_with("top5.any.vs.ada"))
 glimpse(dist.merge)
 ```
 
@@ -608,7 +669,9 @@ dist.merge %>%
   rename(
     "Minimum_Diff" = any.vs.ada.min.dist,
     "Mean_Diff" = any.vs.ada.mean.dist,
-    "Med_Diff" = any.vs.ada.med.dist) %>% 
+    "Med_Diff" = any.vs.ada.med.dist,
+    "Closest_5Stations_Mean_Diff" = top5.any.vs.ada.mean.dist,
+    "Closest_5Stations_Med_Diff" = top5.any.vs.ada.med.dist) %>% 
   gather(key = "Dist.type", value = "Norm_Distance", -(loc_id:borough)) %>% 
   ggplot(aes(x = Norm_Distance)) +
   geom_histogram(bins = 100) +
@@ -622,11 +685,19 @@ dist.merge %>%
   ggplot(aes(any.vs.ada.med.dist)) +
   geom_histogram(bins = 100)
 dist.merge %>% 
-  select(loc_id:borough, ends_with(".ratio")) %>% 
+  ggplot(aes(top5.any.vs.ada.mean.dist)) +
+  geom_histogram(bins = 100)
+dist.merge %>% 
+  ggplot(aes(top5.any.vs.ada.med.dist)) +
+  geom_histogram(bins = 100)
+dist.merge %>% 
+  select(loc_id:borough, ends_with(".ratio")) %>%
+  select(-any.vs.ada.min.ratio) %>% 
   rename(
-    "Minimum_Ratio" = any.vs.ada.min.ratio,
     "Mean_Ratio" = any.vs.ada.mean.ratio,
-    "Med_Ratio" = any.vs.ada.med.ratio
+    "Med_Ratio" = any.vs.ada.med.ratio,
+    "Closest_5Stations_Mean_Ratio" = top5.any.vs.ada.mean.ratio,
+    "Closest_5Stations_Med_Ratio" = top5.any.vs.ada.med.ratio
   ) %>% 
   gather(key = "Dist.type", value = "Norm_Distance", -(loc_id:borough)) %>% 
   ggplot(aes(x = Norm_Distance)) +
@@ -639,6 +710,12 @@ dist.merge %>%
   geom_histogram(bins = 100)
 dist.merge %>% 
   ggplot(aes(any.vs.ada.med.ratio)) +
+  geom_histogram(bins = 100)
+dist.merge %>% 
+  ggplot(aes(top5.any.vs.ada.mean.ratio)) +
+  geom_histogram(bins = 100)
+dist.merge %>% 
+  ggplot(aes(top5.any.vs.ada.med.ratio)) +
   geom_histogram(bins = 100)
 ```  
 
@@ -670,7 +747,18 @@ dist.merge %>%
   scale_color_viridis(option = "B") +
   theme(panel.background = element_rect(fill = 'grey50')) +
   coord_quickmap()
-
+dist.merge %>% 
+  ggplot(aes(x = longitude, y = latitude, color = top5.any.vs.ada.mean.dist)) +
+  geom_point(size = 0.2, alpha = 0.3) +
+  scale_color_viridis(option = "B") +
+  theme(panel.background = element_rect(fill = 'grey50')) +
+  coord_quickmap()
+dist.merge %>% 
+  ggplot(aes(x = longitude, y = latitude, color = top5.any.vs.ada.mean.ratio)) +
+  geom_point(size = 0.2, alpha = 0.3) +
+  scale_color_viridis(option = "B") +
+  theme(panel.background = element_rect(fill = 'grey50')) +
+  coord_quickmap()
 ```
 
 
@@ -687,37 +775,6 @@ ggmap(nyc_map) +
   ggtitle("Direct distance to nearest ADA-accessible subway station from point in NYC\nNormalized to distance to nearest any kind of subway station (subtraction)")
 ```
 
-The poor overlay is fairly annoying. 
-
-What about the ratio norm?
-
-
-```{r ratio_norm, fig.width=8, fig.height=8, comment=NA, eval=FALSE}
-### ratio normalization
-dist.combo %>% 
-  filter(any.vs.ada.ratio < 100) %>%  # this number was trial and error
-  ggplot(aes(x = longitude, y = latitude, color = any.vs.ada.ratio)) +
-  geom_point(size = 0.2) +
-  scale_color_viridis(option = "B") +
-  theme(panel.background = element_rect(fill = 'grey50')) +
-  coord_quickmap() +
-  ggtitle("Direct distance to nearest ADA-accessible subway station from point in NYC\nNormalized by taking the ratio to the nearest any kind of subway station")
-# I was right, looks like its points right on top of stations that are really "far" from ada-accessible stations
-
-dist.combo %>% 
-  filter(any.vs.ada.ratio > 10) %>%  # this number was trial and error
-  mutate(any.vs.ada.ratio = 10) %>% 
-  bind_rows(
-    dist.combo %>% 
-      filter(any.vs.ada.ratio < 10)
-    ) %>% 
-  ggplot(aes(x = longitude, y = latitude, color = any.vs.ada.ratio)) +
-  geom_point(size = 0.2) +
-  scale_color_viridis(option = "B") +
-  theme(panel.background = element_rect(fill = 'grey50')) +
-  coord_quickmap() +
-  ggtitle("Direct distance to nearest ADA-accessible subway station from point in NYC\nNormalized by taking the ratio to the nearest any kind of subway station")
-```
 
 The ratio normalization doesn't really work so well, the subtraction is probably the better choice in this case.
 
@@ -748,21 +805,32 @@ test4 <- dist.merge %>%
   bind_cols(dist.by.tract.frt)
 test5 <- test4 %>% 
   group_by(CT2010) %>% 
-  summarize(avg_to_ada_stat = mean(any.vs.ada.med.dist))
+  summarize(avg_to_ada_stat = mean(top5.any.vs.ada.mean.dist))
 test6 <- test4 %>% 
   group_by(NTAName) %>% 
-  summarize(avg_to_ada_stat = mean(any.vs.ada.med.dist)) %>% 
+  summarize(avg_to_ada_stat = mean(top5.any.vs.ada.mean.dist)) %>% 
   arrange(desc(avg_to_ada_stat))
 merge.to.map <- merge(test.map3, test5, by.x = "CT2010", by.y = "CT2010")
 merge.to.map2 <- merge.to.map
 merge.to.map2[str_detect(merge.to.map2$NTAName, "park-cemetery-etc") | str_detect(merge.to.map2$NTAName, "Airport"), ] <- NA
 tm_shape(merge.to.map2) +
-  tm_fill("avg_to_ada_stat", midpoint = NA, palette = viridis(n = 6))
+  tm_fill("avg_to_ada_stat", style = "fixed", breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 3, 5.9643), palette = viridis(n = 8, option = "A"))
+tm_shape(merge.to.map2) +
+  tm_fill("avg_to_ada_stat", style = "fixed", breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 3, 5.9643), palette = viridis(n = 8, option = "B"))
+tm_shape(merge.to.map2) +
+  tm_fill("avg_to_ada_stat", style = "fixed", breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 3, 5.9643), palette = viridis(n = 8, option = "C"))
+tm_shape(merge.to.map2) +
+  tm_fill("avg_to_ada_stat", style = "fixed", breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 3, 5.9643), palette = viridis(n = 8, option = "D"))
+tm_shape(merge.to.map2) +
+  tm_fill("avg_to_ada_stat", style = "fixed", breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 3, 5.9643), palette = viridis(n = 8, option = "E"))
+tm_shape(merge.to.map2) +
+  tm_borders() +
+  tm_fill("avg_to_ada_stat", style = "fixed", breaks = c(0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 3, 5.9643), palette = viridis(n = 8, option = "A"))
 merge.to.map.neigh <- merge(test.map3, test6, by.x = "NTAName", by.y = "NTAName")
 merge.to.map.neigh[str_detect(merge.to.map.neigh$NTAName, "park-cemetery-etc") | str_detect(merge.to.map.neigh$NTAName, "Airport"), ] <- NA
 tm_shape(merge.to.map.neigh) +
   tm_borders()+
-  tm_fill("avg_to_ada_stat", midpoint = NA, palette = viridis(n = 6))
+  tm_fill("avg_to_ada_stat", midpoint = NA, palette = viridis(n = 6, option = "A"))
 
 sum(str_detect(merge.to.map$NTAName, "park-cemetery-etc"))
 merge.parks <- merge.to.map[str_detect(merge.to.map$NTAName, "park-cemetery-etc"),]
