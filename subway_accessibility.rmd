@@ -24,6 +24,7 @@ Need:
 - Data for station locations (longitude, latitude)
 - Some way to sample the territory of NYC (it's an odd shape)
 
+# Setup
 
 ```{r packages, comment=NA}
 library(tidyverse)
@@ -35,39 +36,47 @@ library(rgdal)
 library(tmap)
 ```
 
-Not sure which are the most reliable datasets to use here. 
-
-
-
 
 ##Data import, cleanup, and some exploration
 
 ```{r data, comment=NA}
-ada_raw <- read_csv("./data/Elevator Escalator Station Data.csv") %>% 
-  arrange(station)
-subloc_raw <- read_csv("./data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv") %>% 
-  arrange(`Station Name`) #%>% 
-  #mutate_all(str_to_lower)
-set.seed(2018)
-nyc311_loc <- read_csv(file = "./data/unique_nyc_2015_311.csv") %>%
-  distinct() %>% 
-  sample_frac(0.25, replace = FALSE)
-colnames(subloc_raw) <- colnames(subloc_raw) %>% 
-  str_to_lower() %>% 
-  gsub(pattern = " ", replacement = "_")
-colnames(ada_raw) <- colnames(ada_raw) %>% 
-  str_to_lower()
-colnames(nyc311_loc) <- colnames(nyc311_loc) %>% 
-  str_to_lower()
-glimpse(ada_raw)
-glimpse(subloc_raw)
-glimpse(nyc311_loc)
+nyc.census.map <- readOGR("./data/nyct2010_18a", "nyct2010")
+subway.ent.exit <- read_csv("./data/2018_update/NYC_Transit_Subway_Entrance_And_Exit_Data.csv")
+subway.by.line <- read_csv("./data/2018_update/nyc_subway_stations_grouped.csv")
+# subway entrances/exit data:
+glimpse(subway.ent.exit)
+# subway summary data
+glimpse(subway.by.line)
 ```
+
+
+```{r nyc_map}
+tm_shape(nyc.census.map) +
+  tm_borders() 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 Mucking around, trying to see what I have to work with.
 
-```{r looking_over_data, comment=NA}
+```{r looking_over_data, comment=NA, eval=FALSE}
 # What are the cols and how many missing values per col?
 subloc_raw <- subloc_raw %>% 
   replace_na(
@@ -116,6 +125,7 @@ glimpse(subloc_bor)
 
 # after investigating, there are 27 extra rows - some of the nyc 311 locations are wrongly labeled
 
+
 ```
 
 The Subway Entrance and Exit data seems to be good enough for an initial analysis. Hopefully the ADA column in that dataset is reliable. Need to compare this with the other datasets collected at some point, but joining is a problem.
@@ -128,7 +138,7 @@ For now, stick with the sub.location.raw.data for the rest of the analysis.
 
 Map of all subway stations in this dataset:
 
-```{r nyc_stations_map, fig.height=8, fig.width=8, comment=NA}
+```{r nyc_stations_map, fig.height=8, fig.width=8, comment=NA, eval=FALSE}
 nyc_map <- get_map(location = "New York City")
 ggmap(nyc_map) +
   geom_point(data = subloc_bor, aes(x = station_longitude, y = station_latitude, color = borough)) +
@@ -214,7 +224,7 @@ Notes:
 - Station names in the station column are NOT unique (multiple 103rd St, etc) in the entrance/exit data, but station location may be a unique and consistent handle to grab all the entrances/exits associated with a station
 - For now, will call any station that has at least one ADA-accessible entrance/exit "accessible", but we know that some stations are only partially accessible. For some station, different subway lines are serviced by different platforms within the same station, and not all platforms are fully accessible. This is where the elevator/escalator data joining may be useful. 
 
-```{r ada_check, comment=NA}
+```{r ada_check, comment=NA, eval=FALSE}
 # some info about entrances
 subloc_bor %>% 
   ggplot(aes(x = entrance_type, fill = ada)) +
@@ -230,7 +240,7 @@ subloc_bor %>%
 
 According to the description of the variables in this dataset, `ADA == TRUE` indicates that the station is ADA-Accessible, but not necessarily if that entrance is
 
-```{r, fig.height=8, fig.width=8, comment=NA}
+```{r, fig.height=8, fig.width=8, comment=NA, eval=FALSE}
 ggmap(nyc_map) +
   geom_point(
     data = subloc_bor, 
@@ -253,7 +263,7 @@ I've worked a little bit with the NYC 311 call dataset before. Source: https://n
 
 Remembered that it has latitude/longitude location info for the calls. Grabbed the locations from the 2015 NYC 311 calls data - use as random sample?
 
-```{r nyc_locations, fig.height=8, fig.width=8, comment=NA}
+```{r nyc_locations, fig.height=8, fig.width=8, comment=NA, eval=FALSE}
 nyc311_loc %>% 
   ggplot(aes(x = longitude, y = latitude)) +
   geom_bin2d(bins = 400) +
@@ -264,7 +274,7 @@ nyc311_loc %>%
 
 Not bad. Empty areas are parks probably, should be okay to not include those.
 
-```{r more_cleanup, comment=NA}
+```{r more_cleanup, comment=NA, eval=FALSE}
 # create unique handle using station name, division, and line columns
 subloc_bor <- subloc_bor %>% 
   mutate(station_id = paste(division, line, station_name, sep = " / ")) %>% 
@@ -306,7 +316,7 @@ There's still some duplicates in the stations that have slightly different route
 
 Small-scale test on a tiny portion of the subway stations and the 311 locations:
 
-```{r small_scale_test, comment=NA}
+```{r small_scale_test, comment=NA, eval=FALSE}
 # small scale test
 # pick 10 locations in NYC and find the distance from that point to 5 stations in the city
 loc_test <- nyc311_loc %>% 
@@ -345,7 +355,7 @@ To do:
 
 What's the distance from the NYC 311 point to the closest station (out of the 5):
 
-```{r, fig.height=8, fig.width=8, comment=NA}
+```{r, fig.height=8, fig.width=8, comment=NA, eval=FALSE}
 dim(dist.test.res)
 dist.test.nearest <- dist.test.res %>% 
   group_by(loc.id) %>% 
@@ -374,7 +384,7 @@ Test run with a small fraction of the data seems to have worked, now to tackle t
 
 I exported the distance to any nearest subway station to any point and the distance to the nearest ada subway station into csv files. They're imported in the next chunk.
 
-```{r full_dist_calc, comment=NA}
+```{r full_dist_calc, comment=NA, eval=FALSE}
 glimpse(nyc311_loc)
 glimpse(subloc_sml)
 nyc311_loc <- nyc311_loc %>% 
@@ -562,7 +572,7 @@ ada.top5.distance %>%
 
 Distance to any type of station from a particular point in NYC: 
 
-```{r plot_any_dist_calc, fig.height=8, fig.width=8, comment=NA}
+```{r plot_any_dist_calc, fig.height=8, fig.width=8, comment=NA, eval=FALSE}
 all.distance %>% 
   ggplot(aes(x = longitude, y = latitude, color = nearest.stat)) +
   geom_point(size = 0.2, alpha = 0.2) +
@@ -618,7 +628,7 @@ ggmap(nyc_map) +
 
 Unsurprisingly, some areas are just far from any subway stations and that carries over into what areas are far from ADA stations. 
 
-```{r combining_distances, comment=NA}
+```{r combining_distances, comment=NA, eval=FALSE}
 dist.merge <- all.distance %>% 
   inner_join(
     ada.distance %>% select(-(borough:longitude)), 
@@ -663,7 +673,7 @@ glimpse(dist.merge)
 
 Histogram of the distances:
 
-```{r, fig.height=4, fig.width=8, comment=NA}
+```{r, fig.height=4, fig.width=8, comment=NA, eval=FALSE}
 dist.merge %>% 
   select(loc_id:borough, ends_with(".dist")) %>% 
   rename(
@@ -721,7 +731,7 @@ dist.merge %>%
 
 Maps of the normalized distances to ADA-Accessible stations:
   
-```{r norm_subtract_viz, fig.width=8, fig.height=8, comment=NA}
+```{r norm_subtract_viz, fig.width=8, fig.height=8, comment=NA, eval=FALSE}
 ### subtraction normalization
 dist.merge %>% 
   ggplot(aes(x = longitude, y = latitude, color = any.vs.ada.min.dist)) +
@@ -764,7 +774,7 @@ dist.merge %>%
 
 What are the rough locations under-serviced? Google map can help here, even though it's not perfect.
 
-```{r dist_sub_map, fig.width=8, fig.height=8, comment=NA}
+```{r dist_sub_map, fig.width=8, fig.height=8, comment=NA, eval=FALSE}
 ggmap(nyc_map) +
   geom_point(data = dist.merge, aes(x = longitude + 0.002, y = latitude - 0.002, color = any.vs.ada.min.dist), size = 0.2) +
   scale_color_viridis(option = "B")  +
@@ -784,7 +794,7 @@ Next steps:
 - Find a better NYC map overlay - is it the 311 long,lat data that's the problem, or the map I got from ggmap? 
 
 
-```{r}
+```{r, eval = FALSE}
 test.map <- readOGR("./data/nyct2010_18a", "nyct2010")
 tm_shape(test.map) +
   tm_borders() 
