@@ -27,42 +27,89 @@ Need:
 # Setup
 
 ```{r packages, comment=NA}
+#library(ggmap)
+#library(cowplot)
+#library(viridis)
+#library(geosphere)
+#library(rgdal)
+#library(tmap)
 library(tidyverse)
-library(ggmap)
-library(cowplot)
-library(viridis)
-library(geosphere)
-library(rgdal)
-library(tmap)
+library(sf)
 ```
 
 
 ##Data import, cleanup, and some exploration
 
 ```{r data, comment=NA}
-nyc.census.map <- readOGR("./data/nyct2010_18a", "nyct2010")
+nyc.census.map <- st_read("./data/nyct2010_18a/nyct2010.shp")
 subway.ent.exit <- read_csv("./data/2018_update/NYC_Transit_Subway_Entrance_And_Exit_Data.csv")
 subway.by.line <- read_csv("./data/2018_update/nyc_subway_stations_grouped.csv")
+```
+
+
+```{r preview, comment=NA}
+plot(nyc.census.map$geometry)
 # subway entrances/exit data:
 glimpse(subway.ent.exit)
 # subway summary data
 glimpse(subway.by.line)
 ```
 
+First things first, cleanup the column names of the two subway info dataframes by converting the words to lower-case and by replacing empty spaces with `_`:
 
-```{r nyc_map}
-tm_shape(nyc.census.map) +
-  tm_borders() 
+```{r comment=NA}
+colnames(subway.ent.exit) <- colnames(subway.ent.exit) %>% 
+  str_to_lower() %>% 
+  str_replace(" ", "_")
+colnames(subway.by.line) <- colnames(subway.by.line) %>% 
+  str_to_lower() %>% 
+  str_replace(" ", "_")
+colnames(subway.ent.exit)
+```
+
+Much better! 
+
+Now for some cleanup of the subway entrance/exit dataset:
+* Create a unique station name column by combining the division. line, and station_name
+
+```{r comment=NA}
+# note that the sta
+length(unique(subway.ent.exit$station_name))
+nrow(subway.ent.exit %>% select(station_name, station_latitude:station_longitude) %>% distinct())
+nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
+sub.ext.sml <- subway.ent.exit %>% 
+  unite("stat_name", division:station_name, sep = "_") %>% 
+  select(stat_name:station_longitude, entrance_latitude:entrance_longitude, route1:route11, entrance_type:entry, ada) %>% 
+  replace_na(
+    list(
+      route1 = "", route2 = "", route3 = "", route4 = "", 
+      route5 = "", route6 = "", route7 = "", route8 = "", 
+      route9 = "", route10 = "", route11 = ""
+      )
+    ) %>% 
+  unite(col = routes, route1:route11, sep = "")
+glimpse(sub.ext.sml)
+sapply(sub.ext.sml, anyNA)
 ```
 
 
+```{r}
+nyc.map.4boro <- nyc.census.map %>% 
+  filter(BoroName != "Staten Island")
+tract.cent <- st_centroid(nyc.map.4boro)
+plot(st_geometry(nyc.map.4boro), col = "grey", border = "white")
+plot(tract.cent, pch = 16, cex = 0.25, col = "#D55E00", add = TRUE)
+st_crs(tract.cent$geometry)
 
+sub.small <- sample_n(sub.ext.sml, size = 20)
+test <- st_as_sf(sub.small, coords = c("station_longitude", "station_latitude"), crs = 4326)
+test2 <- st_transform(test, crs = st_crs(nyc.map.4boro))
+plot(st_geometry(nyc.map.4boro), col = "grey", border = "white")
+plot(test2, pch = 16, cex = 1, col = "#D55E00", add = TRUE)
 
-
-
-
-
-
+cent.stat.geo <- st_transform(tract.cent, crs = st_crs(test))
+(st_distance(test, cent.stat.geo))
+```
 
 
 
