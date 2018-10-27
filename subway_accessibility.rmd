@@ -26,6 +26,8 @@ Need:
 
 # Setup
 
+## Packages
+
 ```{r packages, comment=NA}
 #library(ggmap)
 #library(cowplot)
@@ -37,8 +39,7 @@ library(tidyverse)
 library(sf)
 ```
 
-
-##Data import, cleanup, and some exploration
+## Data
 
 ```{r data, comment=NA}
 nyc.census.map <- st_read("./data/nyct2010_18a/nyct2010.shp")
@@ -70,7 +71,9 @@ colnames(subway.ent.exit)
 Much better! 
 
 Now for some cleanup of the subway entrance/exit dataset:
+
 * Create a unique station name column by combining the division. line, and station_name
+* Gather the route names into one column and get rid of all of the missing values
 
 ```{r comment=NA}
 # note that the sta
@@ -80,26 +83,140 @@ nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
 sub.ext.sml <- subway.ent.exit %>% 
   unite("stat_name", division:station_name, sep = "_") %>% 
   select(stat_name:station_longitude, entrance_latitude:entrance_longitude, route1:route11, entrance_type:entry, ada) %>% 
-  replace_na(
-    list(
-      route1 = "", route2 = "", route3 = "", route4 = "", 
-      route5 = "", route6 = "", route7 = "", route8 = "", 
-      route9 = "", route10 = "", route11 = ""
-      )
-    ) %>% 
-  unite(col = routes, route1:route11, sep = "")
+  gather("route_num", "route_name", route1:route11) %>% 
+  filter(!is.na(route_name)) %>% 
+  select(-route_num)
 glimpse(sub.ext.sml)
 sapply(sub.ext.sml, anyNA)
 ```
 
 
-```{r}
-nyc.map.4boro <- nyc.census.map %>% 
-  filter(BoroName != "Staten Island")
+```{r subway_boro}
+set.seed(2018)
+nyc311_loc <- read_csv(file = "./data/unique_nyc_2015_311.csv") %>%
+  distinct() %>% 
+  sample_frac(0.25, replace = FALSE)
+glimpse(nyc311_loc)
+
+sub.boro <- sub.ext.sml %>% 
+  mutate(join_key = paste(round(station_latitude, 2), round(station_longitude, 2), sep = "_")) %>% 
+  left_join(nyc311_loc %>% 
+              mutate(latitude = round(Latitude, 2),
+                     longitude = round(Longitude, 2),
+                     join_key = paste(latitude, longitude, sep = "_")) %>% 
+              distinct(), by = "join_key") %>% 
+  # cleanup 
+  select(stat_name:route_name, Borough) %>% 
+  distinct() %>% 
+  rename("borough" = Borough) %>% 
+  mutate(borough = str_to_lower(borough))
+glimpse(sub.boro)
+
+ggplot(sub.boro, aes(station_longitude, station_latitude, color = borough)) +
+  geom_point(size = 1, alpha = 0.5)
+
+ggplot(sub.boro, aes(station_longitude, station_latitude, color = borough)) +
+  geom_point(size = 1, alpha = 0.5) +
+  facet_wrap(~borough, nrow = 2)
+
+# some straight forward manual elimination: 
+sub.boro %>% 
+  filter(borough == "manhattan" & station_latitude < 40.7) %>% 
+  ggplot(aes(station_longitude, station_latitude, color = borough)) +
+  geom_point(size = 1, alpha = 0.5) +
+  ylim(40.6, 40.9) +
+  xlim(-74.05, -73.9)
+sub.boro %>% 
+  filter(borough == "bronx" & station_latitude < 40.8) %>% 
+  ggplot(aes(station_longitude, station_latitude, color = borough)) +
+  geom_point(size = 1, alpha = 0.5) +
+  ylim(40.75, 40.91) +
+  xlim(-73.93, -73.82)
+sub.boro <- sub.boro %>% 
+  filter(!((borough == "manhattan" & station_latitude < 40.7) | (borough == "bronx" & station_latitude < 40.8))) 
+
+ggplot(sub.boro, aes(station_longitude, station_latitude, color = borough)) +
+  geom_point(size = 1, alpha = 0.5)
+
+sub.mult.boro <- sub.boro %>% 
+  select(stat_name:station_longitude, borough) %>% 
+  distinct() %>% 
+  group_by(stat_name, station_latitude, station_longitude) %>% 
+  count() %>% 
+  filter(n > 1) %>% 
+  arrange(stat_name)
+glimpse(sub.mult.boro)
+
+testing <- sub.boro %>% 
+  select(stat_name:station_longitude, borough, route_name) %>% 
+  distinct() %>% 
+  group_by(stat_name, station_latitude, station_longitude, route_name) %>% 
+  count() %>% 
+  filter(n > 1) %>% 
+  arrange(stat_name)
+sub.mult.boro %>% anti_join(testing, by = "stat_name")
+testing %>% anti_join(sub.mult.boro, by = "stat_name")
+
+sub.test <- sub.boro %>% 
+  filter(stat_name %in% sub.mult.boro$stat_name) %>% 
+  select(stat_name:station_longitude, borough) %>% 
+  distinct()
+sub.test2 <- sub.boro %>% 
+  filter(stat_name %in% sub.mult.boro$stat_name) %>% 
+  select(stat_name:station_longitude, route_name, borough) %>% 
+  arrange(stat_name, route_name, borough) %>% 
+  distinct()
+
+sub.boro <- sub.boro %>% 
+  filter(
+    !(
+      (stat_name == "IND_6 Avenue_East Broadway" & borough == "brooklyn") | 
+      (stat_name == "IND_63rd Street_Roosevelt Island" & borough == "queens") |
+      (stat_name == "BMT_Broadway Jamaica_Crescent St" & borough == "queens") |
+      (stat_name == "BMT_Broadway Jamaica_Cypress Hills" & borough == "queens") |
+      (stat_name == "BMT_Broadway Jamaica_Elderts Lane-75th St" & borough == "brooklyn") |
+      (stat_name == "IRT_Broadway-7th Ave_207th St" & borough == "bronx") |
+      # techincally, this station is considred part of Manhattan, but it's not on Manhattan island itself
+      (stat_name == "IRT_Broadway-7th Ave_Marble Hill-225th St" & borough == "manhattan") |
+      (stat_name == "BMT_Canarsie_Halsey St" & borough == "brooklyn") |
+      (stat_name == "BMT_Canarsie_Jefferson St" & borough == "queens") |
+      (stat_name == "BMT_Canarsie_Myrtle Av" & borough == "queens") |
+      (stat_name == "BMT_Canarsie_Wilson Av" & borough == "queens") |
+      (stat_name == "IND_Crosstown_21st St" & borough == "brooklyn") |
+      (stat_name == "IRT_Flushing_Hunters Point" & borough == "brooklyn") |
+      (stat_name == "IRT_Flushing_Vernon Blvd-Jackson Av" & borough == "brooklyn") |
+      (stat_name == "IND_Fulton_Euclid Av" & borough == "queens") |
+      (stat_name == "IRT_Jerome_138th St" & borough == "manhattan") |
+      (stat_name == "IRT_Jerome_149th St-Grand Concourse" & borough == "manhattan") |
+      (stat_name == "IND_Liberty_80th St-Hudson St" & borough == "brooklyn") |
+      (stat_name == "IND_Liberty_Grant Av" & borough == "queens") |
+      (stat_name == "BMT_Myrtle_Forest Av" & borough == "brooklyn") |
+      (stat_name == "BMT_Myrtle_Seneca Av" & borough == "brooklyn") |
+      (stat_name == "IRT_Pelham_138th St-3rd Ave" & borough == "manhattan")
+      )
+    )
+sub.boro %>% 
+  select(stat_name:station_longitude, borough) %>% 
+  distinct() %>% 
+  group_by(stat_name, station_latitude, station_longitude) %>% 
+  count() %>% 
+  filter(n > 1) %>% 
+  arrange(stat_name)
+
+```
+
+
+
+
+```{r dist_calc}
+nyc.map.4boro <- nyc.census.map %>%  
+  filter(BoroName != "Staten Island") %>% 
+  mutate(BoroName = str_to_lower(BoroName))
 tract.cent <- st_centroid(nyc.map.4boro)
 plot(st_geometry(nyc.map.4boro), col = "grey", border = "white")
 plot(tract.cent, pch = 16, cex = 0.25, col = "#D55E00", add = TRUE)
-st_crs(tract.cent$geometry)
+
+
 
 sub.small <- sample_n(sub.ext.sml, size = 20)
 test <- st_as_sf(sub.small, coords = c("station_longitude", "station_latitude"), crs = 4326)
@@ -109,6 +226,21 @@ plot(test2, pch = 16, cex = 1, col = "#D55E00", add = TRUE)
 
 cent.stat.geo <- st_transform(tract.cent, crs = st_crs(test))
 (st_distance(test, cent.stat.geo))
+
+
+test2$BoroName <- "Manhattan"
+test3 <- st_transform(tract.cent, crs = st_crs(test))
+test4 <- unclass(test3$geometry)
+
+tract.cent %>% 
+  filter(BoroName == "manhattan") %>% 
+  st_distance(test2) %>% 
+  unclass() %>% 
+  as_tibble()
+
+ggplot(nyc.map.4boro) +
+  geom_sf() 
+
 ```
 
 
