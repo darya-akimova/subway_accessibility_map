@@ -39,6 +39,7 @@ library(tidyverse)
 library(sf)
 ```
 
+
 ## Data
 
 ```{r data, comment=NA}
@@ -82,13 +83,54 @@ nrow(subway.ent.exit %>% select(station_name, station_latitude:station_longitude
 nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
 sub.ext.sml <- subway.ent.exit %>% 
   unite("stat_name", division:station_name, sep = "_") %>% 
-  select(stat_name:station_longitude, entrance_latitude:entrance_longitude, route1:route11, entrance_type:entry, ada) %>% 
+  select(stat_name:station_longitude, route1:route11, ada) %>% 
+  distinct() %>% 
   gather("route_num", "route_name", route1:route11) %>% 
   filter(!is.na(route_name)) %>% 
   select(-route_num)
 glimpse(sub.ext.sml)
 sapply(sub.ext.sml, anyNA)
 ```
+
+
+
+```{r}
+sub.sml.test <- subway.ent.exit %>% 
+  unite("stat_name", division:station_name, sep = "_") %>% 
+  select(stat_name:station_longitude, entrance_latitude:entrance_longitude, route1:route11, entrance_type:entry, ada) %>%
+  replace_na(
+    list(
+      route1 = "", route2 = "", route3 = "", route4 = "", 
+      route5 = "", route6 = "", route7 = "", route8 = "", 
+      route9 = "", route10 = "", route11 = ""
+      )
+    ) %>% 
+  unite("routes", route1:route11, sep = "") %>% 
+  distinct()
+
+percent_ada <- sub.sml.test %>% 
+  group_by(stat_name) %>% 
+  summarize(
+    num_entry = n(),
+    num_ada = sum(ada),
+    percent_ada = round(num_ada * 100 / num_entry, 2)
+  )
+hist(percent_ada$percent_ada)
+table(percent_ada$percent_ada)
+table(sub.sml.test$entrance_type)
+
+sub.sml.test %>% 
+  group_by(station_latitude, station_longitude) %>% 
+  summarize(
+    num_entry = n(),
+    num_ada = sum(ada),
+    percent_ada = round(num_ada * 100 / num_entry, 2)
+  ) %>% 
+  {table(.$percent_ada)}
+```
+
+
+
 
 
 ```{r subway_boro}
@@ -218,28 +260,261 @@ plot(tract.cent, pch = 16, cex = 0.25, col = "#D55E00", add = TRUE)
 
 
 
-sub.small <- sample_n(sub.ext.sml, size = 20)
-test <- st_as_sf(sub.small, coords = c("station_longitude", "station_latitude"), crs = 4326)
+sub.small <- sample_n(sub.boro, size = 20)
+test <- st_as_sf(sub.boro, coords = c("station_longitude", "station_latitude"), crs = 4326)
 test2 <- st_transform(test, crs = st_crs(nyc.map.4boro))
+
 plot(st_geometry(nyc.map.4boro), col = "grey", border = "white")
 plot(test2, pch = 16, cex = 1, col = "#D55E00", add = TRUE)
 
-cent.stat.geo <- st_transform(tract.cent, crs = st_crs(test))
-(st_distance(test, cent.stat.geo))
 
-
-test2$BoroName <- "Manhattan"
-test3 <- st_transform(tract.cent, crs = st_crs(test))
-test4 <- unclass(test3$geometry)
-
-tract.cent %>% 
-  filter(BoroName == "manhattan") %>% 
-  st_distance(test2) %>% 
-  unclass() %>% 
+test.10 <- tract.cent %>% 
+  select(BoroCT2010, BoroName)
+test.10$geometry <- NULL
+test.10 <- test.10 %>% 
   as_tibble()
 
+man_dist_test <- test.10 %>% 
+  filter(BoroName == "manhattan") %>% 
+  bind_cols(
+    tract.cent %>% 
+      filter(BoroName == "manhattan") %>% 
+      st_distance(
+        test2 %>% 
+        filter(borough == "manhattan")
+        ) %>% 
+      unclass() %>% 
+      as_tibble()
+  ) %>% 
+  gather("station", "ft_dist", -c(BoroCT2010, BoroName)) %>% 
+  group_by(BoroCT2010, BoroName) %>% 
+  top_n(-5, ft_dist) %>% 
+  mutate(mile_dist = ft_dist / 5280) %>% 
+  summarise(
+    mean5_all = mean(mile_dist),
+    med5_all = median(mile_dist)
+    ) %>% 
+  ungroup()
+man_dist_test %>% 
+  gather("measure", "distance", mean5_all:med5_all) %>% 
+  ggplot(aes(distance, fill = measure)) +
+  geom_histogram(bins = 15) +
+  facet_wrap(~ measure)
+
+nyc.map.4boro %>% 
+  inner_join(man_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = med5_all)) +
+  scale_fill_viridis_c(option = "D")
+
+
+
+
+bronx_dist_test <- test.10 %>% 
+  filter(BoroName == "bronx") %>% 
+  bind_cols(
+    tract.cent %>% 
+      filter(BoroName == "bronx") %>% 
+      st_distance(
+        test2 %>% 
+        filter(borough == "bronx")
+        ) %>% 
+      unclass() %>% 
+      as_tibble()
+  ) %>% 
+  gather("station", "ft_dist", -c(BoroCT2010, BoroName)) %>% 
+  group_by(BoroCT2010, BoroName) %>% 
+  top_n(-5, ft_dist) %>% 
+  mutate(mile_dist = ft_dist / 5280) %>% 
+  summarise(
+    mean5_all = mean(mile_dist),
+    med5_all = median(mile_dist)
+    ) %>% 
+  ungroup()
+
+bronx_dist_test %>% 
+  gather("measure", "distance", mean5_all:med5_all) %>% 
+  ggplot(aes(distance, fill = measure)) +
+  geom_histogram(bins = 15) +
+  facet_wrap(~ measure)
+
+
+nyc.map.4boro %>% 
+  inner_join(bronx_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = med5_all)) +
+  scale_fill_viridis_c(option = "B")
+nyc.map.4boro %>% 
+  inner_join(bronx_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = mean5_all)) +
+  scale_fill_viridis_c(option = "B")
+
+
+
+
+brkl_queen_dist_test <- test.10 %>% 
+  filter(BoroName == "brooklyn" | BoroName == "queens") %>% 
+  bind_cols(
+    tract.cent %>% 
+      filter(BoroName == "brooklyn" | BoroName == "queens") %>% 
+      st_distance(
+        test2 %>% 
+        filter(borough == "brooklyn" | borough == "queens")
+        ) %>% 
+      unclass() %>% 
+      as_tibble()
+  ) %>% 
+  gather("station", "ft_dist", -c(BoroCT2010, BoroName)) %>% 
+  group_by(BoroCT2010, BoroName) %>% 
+  top_n(-5, ft_dist) %>% 
+  mutate(mile_dist = ft_dist / 5280) %>% 
+  summarise(
+    mean5_all = mean(mile_dist),
+    med5_all = median(mile_dist)
+    ) %>% 
+  ungroup()
+
+brkl_queen_dist_test %>% 
+  gather("measure", "distance", mean5_all:med5_all) %>% 
+  ggplot(aes(distance, fill = measure)) +
+  geom_histogram(bins = 15) +
+  facet_wrap(~ measure)
+
+
+nyc.map.4boro %>% 
+  inner_join(brkl_queen_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = med5_all)) +
+  scale_fill_viridis_c(option = "B")
+nyc.map.4boro %>% 
+  inner_join(brkl_queen_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = mean5_all)) +
+  scale_fill_viridis_c(option = "B")
+
+
+all_dist_test <- man_dist_test %>% 
+  bind_rows(bronx_dist_test) %>% 
+  bind_rows(brkl_queen_dist_test)
+
+nyc.map.4boro %>% 
+  inner_join(all_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = med5_all)) +
+  scale_fill_viridis_c(option = "B")
+  
+nyc.map.4boro %>% 
+  inner_join(all_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = mean5_all)) +
+  scale_fill_viridis_c(option = "B")
+
 ggplot(nyc.map.4boro) +
-  geom_sf() 
+  geom_sf(aes(fill = BoroName)) 
+
+
+tract.cent_test <- tract.cent %>% 
+  mutate(BoroName = str_replace(BoroName, c("queens|brooklyn"), "brkln_queens"))
+test3 <- test2 %>% 
+  mutate(borough = str_replace(borough, c("queens|brooklyn"), "brkln_queens"))
+
+st_dist_calc <- function(centroid, stations, name) {
+ 
+  centroid.df <- centroid %>% 
+    select(BoroCT2010, BoroName)
+  centroid.df$geometry <- NULL
+  centroid.tbl <- centroid.df %>% 
+    as_tibble()
+  result <- centroid.tbl %>% 
+    filter(BoroName == name) %>% 
+    bind_cols(
+      centroid %>% 
+        filter(BoroName == name) %>% 
+        st_distance(
+          stations %>% 
+          filter(borough == name)
+          ) %>% 
+        unclass() %>% 
+        as_tibble()
+    ) %>% 
+    gather("station", "ft_dist", -c(BoroCT2010, BoroName)) %>% 
+    group_by(BoroCT2010, BoroName) %>% 
+    top_n(-5, ft_dist) %>% 
+    mutate(mile_dist = ft_dist / 5280) %>% 
+    summarise(
+      mean5_all = mean(mile_dist),
+      med5_all = median(mile_dist)
+      ) %>% 
+    ungroup()
+  return(result)
+}
+
+
+
+man_dist_test2 <- st_dist_calc(tract.cent_test, test3, "manhattan")
+bronx_dist_test2 <- st_dist_calc(tract.cent_test, test3, "bronx")
+brkl_queen_dist_test2 <- st_dist_calc(tract.cent_test, test3, "brkln_queens")
+
+all.equal(man_dist_test, man_dist_test2)
+all.equal(bronx_dist_test, bronx_dist_test2)
+all.equal(brkl_queen_dist_test %>% select(BoroCT2010, mean5_all:med5_all), brkl_queen_dist_test2 %>% select(BoroCT2010, mean5_all:med5_all))
+
+all_dist_test2 <- man_dist_test2 %>% 
+  bind_rows(bronx_dist_test2) %>% 
+  bind_rows(brkl_queen_dist_test2)
+
+all.equal(all_dist_test %>% select(BoroCT2010, mean5_all:med5_all), all_dist_test2 %>% select(BoroCT2010, mean5_all:med5_all))
+
+
+st_dist_calc2 <- function(name, centroid, stations) {
+ 
+  centroid.df <- centroid %>% 
+    select(BoroCT2010, BoroName)
+  centroid.df$geometry <- NULL
+  centroid.tbl <- centroid.df %>% 
+    as_tibble()
+  result <- centroid.tbl %>% 
+    filter(BoroName == name) %>% 
+    bind_cols(
+      centroid %>% 
+        filter(BoroName == name) %>% 
+        st_distance(
+          stations %>% 
+          filter(borough == name)
+          ) %>% 
+        unclass() %>% 
+        as_tibble()
+    ) %>% 
+    gather("station", "ft_dist", -c(BoroCT2010, BoroName)) %>% 
+    group_by(BoroCT2010, BoroName) %>% 
+    top_n(-5, ft_dist) %>% 
+    mutate(mile_dist = ft_dist / 5280) %>% 
+    summarise(
+      mean5_all = mean(mile_dist),
+      med5_all = median(mile_dist)
+      ) %>% 
+    ungroup()
+  return(result)
+}
+
+
+all_stations_list <-  map(c("manhattan", "bronx", "brkln_queens"), ~ st_dist_calc2(., tract.cent_test, test3))
+ada_stations_list <- map(c("manhattan", "bronx", "brkln_queens"), ~ st_dist_calc2(., tract.cent_test, test3 %>% filter(ada)))
+
+
+man_dist_test %>% 
+  gather("measure", "distance", mean5_all:med5_all) %>% 
+  ggplot(aes(distance, fill = measure)) +
+  geom_histogram(bins = 15) +
+  facet_wrap(~ measure)
+
+nyc.map.4boro %>% 
+  inner_join(man_dist_test, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = med5_all)) +
+  scale_fill_viridis_c(option = "D")
+
 
 ```
 
