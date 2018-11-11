@@ -492,7 +492,8 @@ st_dist_calc2 <- function(name, centroid, stations) {
     mutate(mile_dist = ft_dist / 5280) %>% 
     summarise(
       mean5 = mean(mile_dist),
-      med5 = median(mile_dist)
+      med5 = median(mile_dist),
+      min1 = min(mile_dist)
       ) %>% 
     ungroup()
   return(result)
@@ -541,6 +542,23 @@ nyc.map.4boro %>%
   ggplot() +
   geom_sf(aes(fill = med5)) +
   scale_fill_viridis_c(option = "D")
+
+all_stations_list %>% 
+  ggplot(aes(min1)) +
+  geom_histogram(bins = 50)
+ada_stations_list %>% 
+  ggplot(aes(min1)) +
+  geom_histogram(bins = 50)
+nyc.map.4boro %>% 
+  inner_join(all_stations_list, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = min1)) +
+  scale_fill_viridis_c(option = "B")
+nyc.map.4boro %>% 
+  inner_join(ada_stations_list, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = min1)) +
+  scale_fill_viridis_c(option = "B")
 ```
 
 
@@ -549,11 +567,12 @@ diff_stations <- all_stations_list %>%
   inner_join(ada_stations_list %>% select(-BoroName), by = "BoroCT2010", suffix = c("_all", "_ada")) %>% 
   mutate(
     mean_diff = mean5_ada - mean5_all,
-    med_diff = med5_ada - med5_all
+    med_diff = med5_ada - med5_all,
+    min_diff = min1_ada - min1_all
   )
 diff_stations %>% 
-  select(-c(mean5_all:med5_ada)) %>% 
-  gather("measure", "distance", mean_diff:med_diff) %>% 
+  select(-c(mean5_all:min1_ada)) %>% 
+  gather("measure", "distance", mean_diff:min_diff) %>% 
   ggplot(aes(distance, fill = measure)) +
   geom_histogram(bins = 50) +
   facet_wrap(~ measure)
@@ -566,6 +585,16 @@ nyc.map.4boro %>%
   inner_join(diff_stations, by = "BoroCT2010") %>% 
   ggplot() +
   geom_sf(aes(fill = mean_diff)) +
+  scale_fill_viridis_c(option = "B")
+nyc.map.4boro %>% 
+  inner_join(diff_stations, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = min_diff)) +
+  scale_fill_viridis_c(option = "B")
+nyc.map.4boro %>% 
+  inner_join(diff_stations, by = "BoroCT2010") %>% 
+  ggplot() +
+  geom_sf(aes(fill = min_diff)) +
   scale_fill_viridis_c(option = "B")
 ```
 
