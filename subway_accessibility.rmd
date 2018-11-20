@@ -29,14 +29,9 @@ Need:
 ## Packages
 
 ```{r packages, comment=NA}
-#library(ggmap)
-#library(cowplot)
-#library(viridis)
-#library(geosphere)
-#library(rgdal)
-#library(tmap)
 library(tidyverse)
 library(sf)
+library(ggthemes)
 ```
 
 
@@ -62,11 +57,12 @@ First things first, cleanup the column names of the two subway info dataframes b
 ```{r comment=NA}
 colnames(subway.ent.exit) <- colnames(subway.ent.exit) %>% 
   str_to_lower() %>% 
-  str_replace(" ", "_")
+  str_replace_all(" ", "_")
+colnames(subway.ent.exit)
 colnames(subway.by.line) <- colnames(subway.by.line) %>% 
   str_to_lower() %>% 
-  str_replace(" ", "_")
-colnames(subway.ent.exit)
+  str_replace_all(" ", "_")
+colnames(subway.by.line)
 ```
 
 Much better! 
@@ -76,28 +72,48 @@ Now for some cleanup of the subway entrance/exit dataset:
 * Create a unique station name column by combining the division. line, and station_name
 * Gather the route names into one column and get rid of all of the missing values
 
-```{r comment=NA}
-# note that the sta
+
+```{r}
+sub.line.tidy <- subway.by.line %>% 
+  separate(lines, into = c(paste("route", 1:4, sep = "_")), remove = FALSE) %>% 
+  gather("route_num", "route_name", route_1:route_4) %>% 
+  filter(!is.na(route_name)) %>% 
+  select(-route_num) %>% 
+  arrange(route_name)
+glimpse(sub.line.tidy)
+
+
+subway.ent.exit %>% 
+  select(route1:route11) %>% 
+  gather("route_num", "route_name") %>% 
+  filter(!(is.na(route_name))) %>% 
+  select(-route_num) %>% 
+  distinct() %>% 
+  anti_join(sub.line.tidy, by = "route_name")
+
+
+
 length(unique(subway.ent.exit$station_name))
 nrow(subway.ent.exit %>% select(station_name, station_latitude:station_longitude) %>% distinct())
 nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
-sub.ext.sml <- subway.ent.exit %>% 
+sub.ext.cln <- subway.ent.exit %>% 
+  mutate_at(vars(division:station_name), str_to_lower) %>% 
   unite("stat_name", division:station_name, sep = "_") %>% 
-  select(stat_name:station_longitude, route1:route11, ada) %>% 
-  distinct() %>% 
-  gather("route_num", "route_name", route1:route11) %>% 
-  filter(!is.na(route_name)) %>% 
-  select(-route_num)
-glimpse(sub.ext.sml)
-sapply(sub.ext.sml, anyNA)
+  mutate_at(vars(route1:route11), str_to_upper) %>% 
+  distinct()
+
+
+  
+
+
+
 ```
 
 
 
 ```{r}
-sub.sml.test <- subway.ent.exit %>% 
-  unite("stat_name", division:station_name, sep = "_") %>% 
-  select(stat_name:station_longitude, entrance_latitude:entrance_longitude, route1:route11, entrance_type:entry, ada) %>%
+sub.sml.test <- sub.ext.cln %>% 
+  select(stat_name:station_longitude, entrance_latitude:entrance_longitude, route1:route11, entrance_type:entry, ada, free_crossover) %>%
   replace_na(
     list(
       route1 = "", route2 = "", route3 = "", route4 = "", 
@@ -107,6 +123,25 @@ sub.sml.test <- subway.ent.exit %>%
     ) %>% 
   unite("routes", route1:route11, sep = "") %>% 
   distinct()
+table(sub.sml.test$free_crossover)
+
+sub.sml.test %>% 
+  select(stat_name, free_crossover) %>% 
+  distinct() %>% 
+  group_by(stat_name) %>% 
+  count() %>% 
+  filter(n > 1)
+sub.sml.test %>% 
+  select(stat_name, free_crossover) %>% 
+  distinct() %>% 
+  filter(!free_crossover)
+sub.sml.test %>% 
+  select(stat_name, free_crossover, ada) %>% 
+  distinct() %>% 
+  group_by(ada, free_crossover) %>% 
+  count()
+subway.ent.exit %>% 
+  filter(ada & !free_crossover)
 
 percent_ada <- sub.sml.test %>% 
   group_by(stat_name) %>% 
@@ -127,7 +162,54 @@ sub.sml.test %>%
     percent_ada = round(num_ada * 100 / num_entry, 2)
   ) %>% 
   {table(.$percent_ada)}
+sub.sml.test %>% 
+  group_by(station_latitude, station_longitude) %>% 
+  summarize(
+    num_entry = n(),
+    num_free_cross = sum(free_crossover),
+    percent_free_cross = round(num_free_cross * 100 / num_entry, 2)
+  ) %>% 
+  {table(.$percent_free_cross)}
+sub.sml.test %>% 
+  group_by(entrance_type, ada) %>% 
+  count() %>% 
+  ggplot(aes(entrance_type, n, fill = ada)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  scale_fill_tableau()
+sub.sml.test %>% 
+  group_by(entrance_type, ada) %>% 
+  count() %>% 
+  ggplot(aes(entrance_type, n, fill = ada)) +
+  geom_bar(stat = "identity", position = "fill") +
+  theme_minimal() +
+  scale_fill_tableau()
+sub.sml.test %>% 
+  group_by(entrance_type, free_crossover) %>% 
+  count() %>% 
+  ggplot(aes(entrance_type, n, fill = free_crossover)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  scale_fill_tableau()
 ```
+
+
+```{r comment=NA}
+# note that the sta
+length(unique(subway.ent.exit$station_name))
+nrow(subway.ent.exit %>% select(station_name, station_latitude:station_longitude) %>% distinct())
+nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
+sub.ext.sml <- sub.ext.cln %>% 
+  select(stat_name:station_longitude, route1:route11, ada) %>% 
+  distinct() %>% 
+  gather("route_num", "route_name", route1:route11) %>% 
+  filter(!is.na(route_name)) %>% 
+  select(-route_num) %>% 
+  distinct()
+glimpse(sub.ext.sml)
+sapply(sub.ext.sml, anyNA)
+```
+
 
 
 
@@ -212,29 +294,29 @@ sub.test2 <- sub.boro %>%
 sub.boro <- sub.boro %>% 
   filter(
     !(
-      (stat_name == "IND_6 Avenue_East Broadway" & borough == "brooklyn") | 
-      (stat_name == "IND_63rd Street_Roosevelt Island" & borough == "queens") |
-      (stat_name == "BMT_Broadway Jamaica_Crescent St" & borough == "queens") |
-      (stat_name == "BMT_Broadway Jamaica_Cypress Hills" & borough == "queens") |
-      (stat_name == "BMT_Broadway Jamaica_Elderts Lane-75th St" & borough == "brooklyn") |
-      (stat_name == "IRT_Broadway-7th Ave_207th St" & borough == "bronx") |
+      (stat_name == "ind_6 avenue_east broadway" & borough == "brooklyn") | 
+      (stat_name == "ind_63rd street_roosevelt island" & borough == "queens") |
+      (stat_name == "bmt_broadway jamaica_crescent st" & borough == "queens") |
+      (stat_name == "bmt_broadway jamaica_cypress hills" & borough == "queens") |
+      (stat_name == "bmt_broadway jamaica_elderts lane-75th st" & borough == "brooklyn") |
+      (stat_name == "irt_broadway-7th ave_207th st" & borough == "bronx") |
       # techincally, this station is considred part of Manhattan, but it's not on Manhattan island itself
-      (stat_name == "IRT_Broadway-7th Ave_Marble Hill-225th St" & borough == "manhattan") |
-      (stat_name == "BMT_Canarsie_Halsey St" & borough == "brooklyn") |
-      (stat_name == "BMT_Canarsie_Jefferson St" & borough == "queens") |
-      (stat_name == "BMT_Canarsie_Myrtle Av" & borough == "queens") |
-      (stat_name == "BMT_Canarsie_Wilson Av" & borough == "queens") |
-      (stat_name == "IND_Crosstown_21st St" & borough == "brooklyn") |
-      (stat_name == "IRT_Flushing_Hunters Point" & borough == "brooklyn") |
-      (stat_name == "IRT_Flushing_Vernon Blvd-Jackson Av" & borough == "brooklyn") |
-      (stat_name == "IND_Fulton_Euclid Av" & borough == "queens") |
-      (stat_name == "IRT_Jerome_138th St" & borough == "manhattan") |
-      (stat_name == "IRT_Jerome_149th St-Grand Concourse" & borough == "manhattan") |
-      (stat_name == "IND_Liberty_80th St-Hudson St" & borough == "brooklyn") |
-      (stat_name == "IND_Liberty_Grant Av" & borough == "queens") |
-      (stat_name == "BMT_Myrtle_Forest Av" & borough == "brooklyn") |
-      (stat_name == "BMT_Myrtle_Seneca Av" & borough == "brooklyn") |
-      (stat_name == "IRT_Pelham_138th St-3rd Ave" & borough == "manhattan")
+      (stat_name == "irt_broadway-7th ave_marble hill-225th st" & borough == "manhattan") |
+      (stat_name == "bmt_canarsie_halsey st" & borough == "brooklyn") |
+      (stat_name == "bmt_canarsie_jefferson st" & borough == "queens") |
+      (stat_name == "bmt_canarsie_myrtle av" & borough == "queens") |
+      (stat_name == "bmt_canarsie_wilson av" & borough == "queens") |
+      (stat_name == "ind_crosstown_21st st" & borough == "brooklyn") |
+      (stat_name == "irt_flushing_hunters point" & borough == "brooklyn") |
+      (stat_name == "irt_flushing_vernon blvd-jackson av" & borough == "brooklyn") |
+      (stat_name == "ind_fulton_euclid av" & borough == "queens") |
+      (stat_name == "irt_jerome_138th st" & borough == "manhattan") |
+      (stat_name == "irt_jerome_149th st-grand concourse" & borough == "manhattan") |
+      (stat_name == "ind_liberty_80th st-hudson st" & borough == "brooklyn") |
+      (stat_name == "ind_liberty_grant av" & borough == "queens") |
+      (stat_name == "bmt_myrtle_forest av" & borough == "brooklyn") |
+      (stat_name == "bmt_myrtle_seneca av" & borough == "brooklyn") |
+      (stat_name == "irt_pelham_138th st-3rd ave" & borough == "manhattan")
       )
     )
 sub.boro %>% 
@@ -244,9 +326,93 @@ sub.boro %>%
   count() %>% 
   filter(n > 1) %>% 
   arrange(stat_name)
+route.mult <- sub.boro %>% 
+  group_by(station_latitude, station_longitude, route_name) %>% 
+  count() %>% 
+  filter(n > 1) %>% 
+  unite("stat_key", station_latitude:station_longitude, sep = "_", remove = FALSE) %>% 
+  inner_join(
+    sub.boro %>% 
+      unite("stat_key", station_latitude:station_longitude, sep = "_"),
+    by = "stat_key"
+  ) %>% 
+  filter(route_name.x == route_name.y) %>% 
+  arrange(station_latitude, station_longitude, route_name.x, stat_name)
+unique(route.mult$stat_name)
 
+
+identical(
+  sub.boro %>% filter(stat_name == "bmt_brighton_west 8th st") %>% select(-stat_name),
+  sub.boro %>% filter(stat_name == "bmt_coney island_west 8th st") %>% select(-stat_name)
+)
+identical(
+  sub.boro %>% filter(stat_name == "bmt_brighton_stillwell av") %>% select(-stat_name),
+  sub.boro %>% filter(stat_name == "bmt_coney island_stillwell av") %>% select(-stat_name) 
+)
+identical(
+  sub.boro %>% filter(stat_name == "bmt_4 avenue_atlantic av-barclays ctr") %>% select(-stat_name),
+  sub.boro %>% filter(stat_name == "bmt_4 avenue_pacific st") %>% select(-stat_name)
+  )
+sub.boro <- sub.boro %>% 
+  filter(
+    !(
+      stat_name == "bmt_coney island_west 8th st" |
+      stat_name == "bmt_coney island_stillwell av" |
+      stat_name == "bmt_4 avenue_pacific st"
+    )
+  )
 ```
 
+
+```{r}
+stat.by.route <- sub.boro %>% 
+  group_by(route_name) %>% 
+  summarize(
+    total_stat = n(),
+    num_ada = sum(ada),
+    per_ada = num_ada * 100 / total_stat
+  ) %>% 
+  mutate(
+    rt_mod = ifelse(
+      route_name == "GS" | route_name == "FS" | route_name == "H",
+      "S",
+      route_name
+      )
+    ) %>% 
+  left_join(sub.line.tidy, by = c("rt_mod" = "route_name")) %>% 
+  arrange(primary_trunk_line, route_name) 
+stat.by.route$rt_order <- factor(stat.by.route$route_name, levels = stat.by.route$route_name)
+
+subway.by.line <- subway.by.line %>% 
+  arrange(primary_trunk_line)
+
+stat.by.route %>% 
+  ggplot(aes(rt_order, total_stat, fill = primary_trunk_line)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = subway.by.line$hexadecimal)
+stat.by.route %>% 
+  ggplot(aes(rt_order, num_ada, fill = primary_trunk_line)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = subway.by.line$hexadecimal)
+stat.by.route %>% 
+  ggplot(aes(rt_order, per_ada, fill = primary_trunk_line)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = subway.by.line$hexadecimal)
+stat.by.route %>% 
+  ggplot(aes(total_stat, num_ada, color = primary_trunk_line)) +
+  geom_abline(slope = 1, intercept = 0, alpha = 0.5, size = 1.5) +
+  geom_point(size = 3) +
+  scale_color_manual(values = subway.by.line$hexadecimal)
+stat.by.route %>% 
+  ggplot(aes(total_stat, per_ada, color = primary_trunk_line)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = subway.by.line$hexadecimal)
+stat.by.route %>% 
+  ggplot(aes(total_stat, per_ada, color = primary_trunk_line, label = route_name)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = subway.by.line$hexadecimal) +
+  geom_text(hjust = 0, vjust = 0, check_overlap = TRUE, nudge_y = 1.5)
+```
 
 
 
