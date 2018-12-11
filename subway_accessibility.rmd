@@ -719,6 +719,139 @@ sub.stat.num.updt.A %>%
   inner_join(num.stat.by.route, by = "route_name") %>% 
   filter(n != num_stations_norm) %>%
   filter(route_name != "B")
+# C next, goal: 40 stations
+sub.stat.num.updt.C <- sub.stat.num.updt.A %>% 
+  filter(route_name != "C") %>% 
+  bind_rows(
+    sub.stat.num.updt.A %>% 
+      filter(route_name == "C" & str_detect(stat_name, "ind")) %>% 
+      filter(!(stat_name %in% c("ind_8 avenue_broadway-nassau", "ind_8 avenue_world trade center"))) %>% 
+      bind_rows(
+            sub.stat.num.updt.A %>% 
+              filter(str_detect(stat_name, "fulton st") & route_name == "A") %>% 
+              mutate(route_name = "C")
+        ) %>%
+      mutate(ada = ifelse(stat_name %in% c("ind_8 avenue_125th st", "ind_fulton_jay st - borough hall", "ind_fulton_utica av"), TRUE, ada))
+)
+sub.stat.num.updt.C %>% 
+  group_by(route_name) %>% 
+  count() %>% 
+  ungroup() %>% 
+  inner_join(num.stat.by.route, by = "route_name") %>% 
+  filter(n != num_stations_norm) %>%
+  filter(route_name != "B")
+# route 5, goal: 45 
+sub.stat.num.updt.5 <- sub.stat.num.updt.C %>% 
+  filter(route_name != "5") %>% 
+  bind_rows(
+    sub.stat.num.updt.C %>% 
+      filter(route_name == "5" & str_detect(stat_name, "irt")) %>% 
+      filter(!(
+        stat_name %in% c(
+          "irt_clark_borough hall", "irt_clark_fulton st", 
+          "irt_flushing_grand central-42nd st", "irt_42nd st shuttle_grand central", 
+          "irt_white plains road_wakefield-241st st"
+          )
+        )) %>%
+      mutate(ada = ifelse(
+        stat_name %in% c("irt_lexington_fulton st", "irt_white plains road_east 180th st", "irt_white plains road_gun hill rd"), TRUE, ada
+        ))
+    )
+sub.stat.num.updt.5 %>% 
+  group_by(route_name) %>% 
+  count() %>% 
+  ungroup() %>% 
+  inner_join(num.stat.by.route, by = "route_name") %>% 
+  filter(n != num_stations_norm) %>%
+  filter(route_name != "B")
+
+# Next: route 6, goal = 38
+sub.stat.num.updt.6 <- sub.stat.num.updt.5 %>% 
+  filter(route_name != "6") %>% 
+  bind_rows(
+    sub.stat.num.updt.5 %>% 
+      filter(route_name == "6" & str_detect(stat_name, "irt")) %>% 
+      filter(!(stat_name %in% c("irt_flushing_grand central-42nd st", "irt_42nd st shuttle_grand central"))) %>% 
+      mutate(ada = ifelse(stat_name %in% c("irt_lexington_bleecker st"), TRUE, ada))
+    )
+sub.stat.num.updt.6 %>% 
+  group_by(route_name) %>% 
+  count() %>% 
+  ungroup() %>% 
+  inner_join(num.stat.by.route, by = "route_name") %>% 
+  filter(n != num_stations_norm) %>%
+  filter(route_name != "B")
+# Next: route D, goal: 36
+sub.stat.num.updt.D <- sub.stat.num.updt.6 %>% 
+  filter(route_name != "D") %>% 
+  bind_rows(
+    sub.stat.num.updt.6 %>% 
+      filter(route_name == "D" & (str_detect(stat_name, "ind") | str_detect(stat_name, "bmt"))) %>% 
+      filter(!(
+        stat_name %in% c(
+          "bmt_broadway_34th st", "bmt_4 avenue_pacific st", 
+          "bmt_brighton_atlantic av", "bmt_sea beach_new utrecht av", 
+          "bmt_brighton_stillwell av")
+        )) %>% 
+      bind_rows(
+        sub.stat.num.updt.6 %>% 
+          filter(str_detect(stat_name, "4 avenue_36")) %>% 
+          mutate(route_name = "D") %>% 
+          distinct()
+        ) %>% 
+      mutate(ada = ifelse(
+        stat_name %in% c("ind_8 avenue_125th st", "ind_6 avenue_broadway-lafayette st", "bmt_west end_bay parkway"), TRUE, ada)
+        )
+    )
+
+sub.stat.num.updt.D %>% 
+  group_by(route_name) %>% 
+  count() %>% 
+  ungroup() %>% 
+  inner_join(num.stat.by.route, by = "route_name") %>% 
+  filter(n != num_stations_norm) %>%
+  filter(route_name != "B")
+
+# Next: route F, goal: 45
+sub.stat.num.updt.F <- sub.stat.num.updt.D %>% 
+  filter(route_name != "F") %>% 
+  bind_rows(
+    sub.stat.num.updt.D %>% 
+      filter(route_name == "F" & (str_detect(stat_name, "ind") | str_detect(stat_name, "bmt"))) %>% 
+      filter(!(
+        stat_name %in% c(
+          "bmt_broadway_34th st", "bmt_canarsie_6th av", 
+          "bmt_nassau_essex st", "bmt_broadway_lawrence st", 
+          "bmt_4 avenue_9th st", "bmt_brighton_stillwell av", 
+          "bmt_brighton_west 8th st"
+          )
+        )) %>% 
+      mutate(ada = ifelse(stat_name %in% c("ind_6 avenue_broadway-lafayette st", "ind_fulton_jay st - borough hall"), TRUE, ada))
+    )
+nrow(sub.stat.num.updt.F %>% filter(route_name == "F"))
+sub.stat.num.updt.F %>% 
+  group_by(route_name) %>% 
+  count() %>% 
+  ungroup() %>% 
+  inner_join(num.stat.by.route, by = "route_name") %>% 
+  filter(n != num_stations_norm) %>%
+  filter(route_name != "B")
+# Next: route M, goal: 36
+sub.stat.num.updt.M <- sub.stat.num.updt.F %>% 
+  filter(route_name != "M") %>% 
+  bind_rows(
+    sub.stat.num.updt.F %>% 
+      filter(route_name == "M" & (str_detect(stat_name, "ind") | str_detect(stat_name, "bmt"))) %>% 
+      filter(!(stat_name %in% c("bmt_broadway_34th st", "bmt_canarsie_6th av", "bmt_nassau_essex st"))) %>% 
+      mutate(ada = ifelse(stat_name %in% c("ind_6 avenue_broadway-lafayette st"), TRUE, ada))
+    )
+sub.stat.num.updt.M %>% 
+  group_by(route_name) %>% 
+  count() %>% 
+  ungroup() %>% 
+  inner_join(num.stat.by.route, by = "route_name") %>% 
+  filter(n != num_stations_norm) %>%
+  filter(route_name != "B")
 ```
 
 
