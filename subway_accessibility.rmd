@@ -8,7 +8,6 @@ output:
     toc_float:
       smooth_scroll: false
     number_sections: true
-    theme: flatly
 ---
 
 ```{r setup, include=FALSE}
@@ -40,6 +39,7 @@ library(ggthemes)
 
 ```{r data, comment=NA}
 nyc.census.map <- st_read("./data/nyct2010_18a/nyct2010.shp")
+nyc.neigh.map <- st_read("./data/nynta_18d/nynta.shp")
 subway.ent.exit <- read_csv("./data/2018_update/NYC_Transit_Subway_Entrance_And_Exit_Data.csv")
 subway.by.line <- read_csv("./data/2018_update/nyc_subway_stations_grouped.csv")
 num.stat.by.route <- read_csv("./data/2018_update/nyc_subway_num_stat_by_line.csv")
@@ -54,6 +54,9 @@ glimpse(subway.ent.exit)
 glimpse(subway.by.line)
 glimpse(num.stat.by.route)
 ```
+
+
+# Preliminary analysis and light cleanup
 
 First things first, cleanup the column names of the two subway info dataframes by converting the words to lower-case and by replacing empty spaces with `_`:
 
@@ -440,7 +443,9 @@ stat.route.join %>%
 ```
 
 
-```{r comment=NA}
+# Cleaning each route
+
+```{r data_clean_by_route, comment=NA}
 num.stat.by.route %>% 
   filter(route_name == "GS")
 sub.ext.ada.updt %>% 
@@ -1028,6 +1033,7 @@ sub.stat.num.updt.final %>%
 ```
 
 
+# Analysis and Visualization
 
 ```{r comment=NA}
 nyc.map.4boro <- nyc.census.map %>%  
@@ -1179,6 +1185,96 @@ neigh.stat.count %>%
 ```
 
 
+Imitate report: https://comptroller.nyc.gov/reports/service-denied-accessibility-and-the-new-york-city-subway-system/
+
+```{r}
+nyc.neigh.4boro <- nyc.neigh.map %>% 
+  filter(BoroName != "Staten Island")
+plot(st_geometry(nyc.neigh.4boro))
+nyc.neigh.stat.count <- st_join(sub.sf.nyc.crs, nyc.neigh.4boro) %>% 
+ st_set_geometry(NULL) %>% 
+  group_by(BoroName, NTAName) %>% 
+  summarize(
+    tot_stat = n(),
+    ada_stat = sum(ada),
+    percent_ada = ada_stat * 100 / tot_stat
+  ) %>% 
+  ungroup()
+glimpse(nyc.neigh.stat.count)
+nyc.neigh.stat.count %>% 
+  ggplot(aes(BoroName, tot_stat, color = BoroName)) +
+  geom_jitter(size = 2, alpha = 0.8, width = 0.25) +
+  scale_color_tableau()
+data_summary <- function(x) {
+   m <- mean(x)
+   ymin <- ifelse(m - sd(x) > 0, m - sd(x), 0)
+   ymax <- m + sd(x)
+   return(c(y=m,ymin=ymin,ymax=ymax))
+}
+nyc.neigh.stat.count %>% 
+  ggplot(aes(BoroName, tot_stat, color = BoroName, fill = BoroName)) +
+  geom_violin() +
+  stat_summary(fun.data = data_summary, color = "black", alpha = 0.8) +
+  scale_color_tableau() +
+  scale_fill_tableau() +
+  xlab("Borough") +
+  ylab("Subway Stations per Neighborhood")
+nyc.neigh.stat.count %>% 
+  ggplot(aes(BoroName, ada_stat, color = BoroName, fill = BoroName)) +
+  geom_violin() +
+  stat_summary(fun.data = data_summary, color = "black", alpha = 0.8) +
+  scale_color_tableau() +
+  scale_fill_tableau() +
+  xlab("Borough") +
+  ylab("Subway Stations per Neighborhood")
+
+nyc.neigh.4boro.count <- nyc.neigh.4boro %>% 
+  full_join(
+    nyc.neigh.stat.count %>% 
+      select(-BoroName),
+    by = "NTAName"
+    )
+nyc.neigh.4boro.count %>% 
+  ggplot() +
+  geom_sf(aes(fill = tot_stat)) 
+nyc.neigh.count.prep <- nyc.neigh.4boro.count %>% 
+  mutate(
+    color_group = ifelse(
+      str_detect(NTAName, "park"), "Park", ifelse(
+        str_detect(NTAName, "Airport"), "Airport", ifelse(
+          !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & is.na(tot_stat), "No stations", ifelse(
+            !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & tot_stat > 0 & ada_stat < 1, "No accessible stations", ifelse(
+              !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & tot_stat > 0 & ada_stat > 0, "At least one accessible station", "Don't know"
+              )
+            )
+          )
+        )
+      )
+    )
+table(nyc.neigh.count.prep$color_group)
+nyc.neigh.count.prep %>% 
+  ggplot() +
+  geom_sf(aes(fill = color_group), color = "#BFBFBF") +
+  scale_fill_manual(values = c("grey30", "#0072B2", "#E69F00", "#999999", "#bae4b3")) +
+  geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", fill = "black", size = 1, pch = 21)
+nyc.neigh.count.prep %>% 
+  ggplot() +
+  geom_sf(aes(fill = tot_stat), color = "#BFBFBF") +
+  scale_fill_viridis_c(option = "D")
+nyc.neigh.count.prep %>% 
+  ggplot() +
+  geom_sf(aes(fill = ada_stat), color = "#BFBFBF") +
+  scale_fill_viridis_c(option = "D")
+nyc.neigh.count.prep$ada_per_breaks <- cut(nyc.neigh.count.prep$percent_ada, breaks = seq(0, 100, 20))
+nyc.neigh.count.prep %>% 
+  ggplot() +
+  geom_sf(aes(fill = ada_per_breaks), color = "#BFBFBF") +
+  scale_fill_manual(values = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494"), na.value = "gray50")
+summary(nyc.neigh.count.prep$percent_ada)
+```
+
+
+
 ```{r}
 tract.cent <- st_centroid(nyc.map.4boro)
 plot(st_geometry(tract.cent), pch = 16, cex = 0.25)
@@ -1209,3 +1305,11 @@ nyc.map.4boro.test %>%
   scale_fill_viridis_c(option = "A") +
   geom_sf(data = sub.sf.nyc.crs, color = "white", size = 1)
 ```
+
+
+# Session Info
+
+```{r session_info, comment=NA}
+sessionInfo()
+```
+
