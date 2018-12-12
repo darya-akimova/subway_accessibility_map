@@ -11,7 +11,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 Main question to address: What areas of NYC are under-serviced by ADA accessible stations?
@@ -1040,9 +1040,6 @@ nyc.map.4boro <- nyc.census.map %>%
   filter(BoroName != "Staten Island") %>% 
   mutate(BoroName = str_to_lower(BoroName))
 tract.cent <- st_centroid(nyc.map.4boro)
-plot(st_geometry(nyc.map.4boro), col = "grey", border = "white")
-plot(tract.cent, pch = 16, cex = 0.25, col = "#D55E00", add = TRUE)
-
 
 sub.cln.sf <- st_as_sf(sub.stat.num.updt.final, coords = c("avg_stat_long", "avg_stat_lat"), crs = 4326)
 sub.sf.nyc.crs <- st_transform(sub.cln.sf, crs = st_crs(nyc.map.4boro))
@@ -1275,22 +1272,53 @@ summary(nyc.neigh.count.prep$percent_ada)
 
 
 
-```{r}
+```{r census_tract_buffer, comment=NA}
 tract.cent <- st_centroid(nyc.map.4boro)
-plot(st_geometry(tract.cent), pch = 16, cex = 0.25)
-test <- st_buffer(tract.cent, dist = 2500)
-plot(st_geometry(test))
-plot(st_geometry(nyc.map.4boro), col = "grey", border = "white")
-plot(test, col = "#D55E00", add = TRUE)
+nyc.map.4boro %>% 
+  ggplot() +
+  geom_sf(color = "#BFBFBF") +
+  geom_sf(data = tract.cent, size = 1, color = "#4E79A7")
+# half-mile buffer
+tract.cent.halfmi.buff <- st_buffer(tract.cent, dist = 2640)
+nyc.map.4boro %>% 
+  ggplot() +
+  geom_sf(color = "#BFBFBF") +
+  geom_sf(data = tract.cent.halfmi.buff, alpha = 0.2, color = "#F28E2B") +
+  geom_sf(data = tract.cent, size = 1, color = "#4E79A7")
+#example
+nyc.map.4boro %>% 
+  ggplot() +
+  geom_sf(color = "#BFBFBF") +
+  geom_sf(data = tract.cent.halfmi.buff %>% filter(BoroCT2010 == 1009800 | BoroCT2010 == 1018400 ), alpha = 0.8, color = "#F28E2B", fill = "#F28E2B") +
+  geom_sf(data = sub.sf.nyc.crs, color = "black", size = 1)
 
-plot(st_geometry(test %>% filter(BoroCT2010 == 1009800 | BoroCT2010 == 1018400 )))
 
-test2 <- st_join(sub.sf.nyc.crs, test)
-test3 <- st_set_geometry(test2, NULL)
+
+  
+
+
+
+sub.sf.nyc.crs %>% 
+  inner_join(
+    sub.boro %>% 
+      st_set_geometry(NULL) %>% 
+      as_tibble() %>% 
+      select(stat_name, BoroName) %>% 
+      distinct(),
+    by = "stat_name"
+  ) %>% 
+  st_join(
+    tract.cent.halfmi.buff
+    )
+
+
+
+sub.buffer.join <- st_join(sub.sf.nyc.crs, tract.cent.halfmi.buff) %>% 
+  st_set_geometry(NULL)
 
 nyc.map.4boro.test <- nyc.map.4boro %>% 
   full_join(
-    test3 %>% 
+    sub.buffer.join %>% 
       group_by(BoroCT2010) %>% 
       count() %>% 
       ungroup(),
