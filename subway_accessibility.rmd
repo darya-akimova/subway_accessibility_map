@@ -1,7 +1,6 @@
 ---
-title: "underserviced_areas"
+title: "NYC Subway Accessibility"
 author: "Darya Akimova"
-date: "August 23, 2018"
 output: 
   html_document:
     toc: true
@@ -1294,11 +1293,64 @@ nyc.map.4boro %>%
 
 
 
-  
+sub.buffer.join <- st_join(sub.sf.nyc.crs, tract.cent.halfmi.buff) %>% 
+  st_set_geometry(NULL)
+
+sub.buffer.join %>% 
+  filter(BoroCT2010 == 1018400)
+
+nyc.map.4boro.test <- nyc.map.4boro %>% 
+  full_join(
+    sub.buffer.join %>% 
+      group_by(BoroCT2010) %>% 
+      summarize(
+        tot_stat = n(),
+        ada_stat = sum(ada)
+      ) %>% 
+      ungroup(),
+    by = "BoroCT2010"
+    )
+length(unique(sub.buffer.join$BoroCT2010))
+length(unique(nyc.map.4boro$BoroCT2010))
+nyc.map.4boro.test %>% 
+  filter(BoroCT2010 == 1009800 | BoroCT2010 == 1018400)
+
+nyc.map.4boro.test %>% 
+  ggplot() +
+  geom_sf(aes(fill = tot_stat)) +
+  scale_fill_viridis_c(option = "A") +
+  geom_sf(data = sub.sf.nyc.crs, color = "white", size = 1)
+nyc.map.4boro.test %>% 
+    mutate(
+    color_group = ifelse(
+      str_detect(NTAName, "park"), "Park", ifelse(
+        str_detect(NTAName, "Airport"), "Airport", ifelse(
+          !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & is.na(tot_stat), "No stations", ifelse(
+            !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & tot_stat > 0 & ada_stat < 1, "No accessible stations", ifelse(
+              !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & tot_stat > 0 & ada_stat > 0, "At least one accessible station", "Don't know"
+              )
+            )
+          )
+        )
+      )
+    ) %>% 
+  ggplot() +
+  geom_sf(aes(fill = color_group)) +
+  scale_fill_manual(values = c("grey30", "#0072B2", "#E69F00", "#999999", "#bae4b3")) +
+  #geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", fill = "black", size = 1, pch = 21)
+  geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", size = 1)
+
+nyc.map.4boro.test %>% 
+  mutate(ada_stat = ifelse(ada_stat == 0, NA, ada_stat)) %>% 
+  ggplot() +
+  geom_sf(aes(fill = ada_stat)) +
+  scale_fill_viridis_c(option = "A") +
+  geom_sf(data = sub.sf.nyc.crs, color = "white", size = 1)
 
 
+### separate the spatial join by borough ###
 
-sub.sf.nyc.crs %>% 
+sub.sf.nyc.crs.boro <- sub.sf.nyc.crs %>% 
   inner_join(
     sub.boro %>% 
       st_set_geometry(NULL) %>% 
@@ -1306,32 +1358,82 @@ sub.sf.nyc.crs %>%
       select(stat_name, BoroName) %>% 
       distinct(),
     by = "stat_name"
-  ) %>% 
+  )
+
+sub.join.borolim <- sub.sf.nyc.crs.boro %>% 
+  # manhattan
+  filter(BoroName == "manhattan") %>% 
   st_join(
-    tract.cent.halfmi.buff
+    tract.cent.halfmi.buff %>% 
+      filter(BoroName == "manhattan")
+    ) %>% 
+  st_set_geometry(NULL) %>% 
+  bind_rows(
+    # bronx
+    sub.sf.nyc.crs.boro %>% 
+      filter(BoroName == "bronx") %>% 
+      st_join(
+        tract.cent.halfmi.buff %>% 
+          filter(BoroName == "bronx")
+        ) %>% 
+      st_set_geometry(NULL)
+    ) %>% 
+  bind_rows(
+    # brooklyn and queens together
+    sub.sf.nyc.crs.boro %>% 
+      filter(BoroName == "brooklyn" | BoroName == "queens") %>% 
+      st_join(
+        tract.cent.halfmi.buff %>% 
+          filter(BoroName == "brooklyn" | BoroName == "queens")
+        ) %>% 
+      st_set_geometry(NULL)
     )
 
-
-
-sub.buffer.join <- st_join(sub.sf.nyc.crs, tract.cent.halfmi.buff) %>% 
-  st_set_geometry(NULL)
-
-nyc.map.4boro.test <- nyc.map.4boro %>% 
+nyc.map.4boro.buff.join <- nyc.map.4boro %>% 
   full_join(
-    sub.buffer.join %>% 
+    sub.join.borolim %>% 
       group_by(BoroCT2010) %>% 
-      count() %>% 
+      summarize(
+        tot_stat = n(),
+        ada_stat = sum(ada)
+      ) %>% 
       ungroup(),
     by = "BoroCT2010"
     )
-length(unique(test3$BoroCT2010))
-length(unique(nyc.map.4boro$BoroCT2010))
 
-nyc.map.4boro.test %>% 
+
+nyc.map.4boro.buff.join %>% 
   ggplot() +
-  geom_sf(aes(fill = n)) +
+  geom_sf(aes(fill = tot_stat)) +
   scale_fill_viridis_c(option = "A") +
   geom_sf(data = sub.sf.nyc.crs, color = "white", size = 1)
+nyc.map.4boro.buff.join %>% 
+    mutate(
+    color_group = ifelse(
+      str_detect(NTAName, "park"), "Park", ifelse(
+        str_detect(NTAName, "Airport"), "Airport", ifelse(
+          !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & is.na(tot_stat), "No stations", ifelse(
+            !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & tot_stat > 0 & ada_stat < 1, "No accessible stations", ifelse(
+              !(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) & tot_stat > 0 & ada_stat > 0, "At least one accessible station", "Don't know"
+              )
+            )
+          )
+        )
+      )
+    ) %>% 
+  ggplot() +
+  geom_sf(aes(fill = color_group)) +
+  scale_fill_manual(values = c("grey30", "#0072B2", "#E69F00", "#999999", "#bae4b3")) +
+  #geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", fill = "black", size = 1, pch = 21)
+  geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", size = 1)
+
+nyc.map.4boro.buff.join %>% 
+  mutate(ada_stat = ifelse(ada_stat == 0, NA, ada_stat)) %>% 
+  ggplot() +
+  geom_sf(aes(fill = ada_stat)) +
+  scale_fill_viridis_c(option = "A") +
+  geom_sf(data = sub.sf.nyc.crs, color = "white", size = 1)
+
 ```
 
 
