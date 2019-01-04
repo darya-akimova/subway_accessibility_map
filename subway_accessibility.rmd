@@ -57,11 +57,6 @@ This project was initially sparked by the Data for Democracy NYC Accessibility p
 
 ## Packages
 
-```{r packages, comment=NA}
-library(tidyverse)
-library(sf)
-library(ggthemes)
-```
 
 Packages used:
 
@@ -69,8 +64,23 @@ Packages used:
 * sf - geospatial analysis
 * ggthemes - ggplot2 theme and palette add-on 
 
+```{r packages, comment=NA}
+library(tidyverse)
+library(sf)
+library(ggthemes)
+```
+
 
 ## Data Import
+
+
+Data sources: 
+
+* NYC Census Map shapefile: [NYC Department of City Planning Open Data Website](https://www1.nyc.gov/site/planning/data-maps/open-data/districts-download-metadata.page)
+* NYC Neighborhood Tabulation Areas Map shapefile: [NYC Department of City Planning Open Data Website](https://www1.nyc.gov/site/planning/data-maps/open-data/dwn-nynta.page)
+* Subway Entrances and Exits: [Open Data NY](https://data.ny.gov/Transportation/NYC-Transit-Subway-Entrance-And-Exit-Data/i9wp-a4ja)
+* Subway by Line Info: Copied from the [NYC Subway Wikipedia Page](https://en.wikipedia.org/wiki/New_York_City_Subway)
+* Number of Subway Stations by Route: Collected from each individual subway route page, such as this page for [the E subway service](https://en.wikipedia.org/wiki/New_York_City_Subway)
 
 ```{r data_import, comment=NA}
 ### shapefiles ###
@@ -88,29 +98,28 @@ subway.by.line <- read_csv("./data/2018_update/nyc_subway_stations_grouped.csv")
 num.stat.by.rt.wiki <- read_csv("./data/2018_update/nyc_subway_num_stat_by_line.csv")
 ```
 
-Data sources: 
-
-* NYC Census Map shapefile: [NYC Department of City Planning Open Data Website](https://www1.nyc.gov/site/planning/data-maps/open-data/districts-download-metadata.page)
-* NYC Neighborhood Tabulation Areas Map shapefile: [NYC Department of City Planning Open Data Website](https://www1.nyc.gov/site/planning/data-maps/open-data/dwn-nynta.page)
-* Subway Entrances and Exits: [Open Data NY](https://data.ny.gov/Transportation/NYC-Transit-Subway-Entrance-And-Exit-Data/i9wp-a4ja)
-* Subway by Line Info: Copied from the [NYC Subway Wikipedia Page](https://en.wikipedia.org/wiki/New_York_City_Subway)
-* Number of Subway Stations by Route: Collected from each individual subway route page, such as this page for [the E subway service](https://en.wikipedia.org/wiki/New_York_City_Subway)
-
 
 ## Data Preview
 
 
-```{r data_preview, comment=NA}
-# set the theme
-theme_set(theme_minimal())
+The NYC census tract and neighborhood `sf` files can be visualized in a number of ways, including ggplot2 and the `plot` function. Here, ggplot is used to layer the census tracts in blue and the neighborhood boundaries in orange. 
 
+```{r nyc_map_preview, comment=NA}
+# minimal theme for nice plots throughout the project
+theme_set(theme_minimal())
 # nyc census tracts map in blue
 nyc.census.map %>% 
   ggplot() +
   geom_sf(color = "#1F77B4") +
   # nyc neighborhoods outlines overlaid in orange
   geom_sf(data = nyc.neigh.map, color = "#FF7F0E", size = 1, fill = NA)
+```
 
+
+With the exception of parks and airports, most neightborhood tracts include multiple census tracts. Both shapefiles also include Staten Island, for which there is no data in the subway entrances/exits dataset and therefore it will be removed. The rail system there is not considered a part of the subway system per se. 
+
+
+```{r data_preview, comment=NA}
 # subway entrances/exit data:
 glimpse(subway.ent.exit)
 # subway summary data
@@ -118,6 +127,7 @@ glimpse(subway.by.line)
 # num of station stops by route:
 glimpse(num.stat.by.rt.wiki)
 ```
+
 
 Preliminary to-do list:
 
@@ -131,7 +141,7 @@ Preliminary to-do list:
 
 ## Cleaning ? 
 
-First things first, cleanup the column names of the two subway info dataframes by converting the words to lower-case and by replacing empty spaces with `_`:
+First things first, cleanup the column names of the two subway info dataframes by converting the words to lower-case and by replacing empty spaces to make them easier to work with:
 
 ```{r comment=NA}
 colnames(subway.ent.exit) <- colnames(subway.ent.exit) %>% 
@@ -146,11 +156,7 @@ colnames(subway.by.line)
 
 Much better! 
 
-
-Now for some cleanup of the subway entrance/exit dataset:
-
-* Create a unique station name column by combining the division. line, and station_name
-* Gather the route names into one column and get rid of all of the missing values
+Next, the `lines` column in the `subway.by.line` dataset needs to be separated so that each subway line is its own row. 
 
 
 ```{r sub_line_tidy, comment=NA}
@@ -165,28 +171,50 @@ sub.line.tidy <- subway.by.line %>%
   select(-route_num) %>% 
   arrange(route_name)
 glimpse(sub.line.tidy)
+```
 
 
+Now that the dataset is clean, it is possible to check the route names against the entrances/exits data in order to determine if there is anything odd or any typos:
+
+```{r comment=NA}
 subway.ent.exit %>% 
+  # gather the unique route names across all of the route columns in the subway ent/exit dataset:
   select(route1:route11) %>% 
   gather("route_num", "route_name") %>% 
   filter(!(is.na(route_name))) %>% 
   select(-route_num) %>% 
   distinct() %>% 
+  # any route names in the ent/exit df that are not in the official route list on the wiki?
   anti_join(sub.line.tidy, by = "route_name")
+```
+
+Yes, it looks like there are four routes in the subway ent/exit df that are not in the route list. However, the `e` is simply a typo that should be changed to `E`, which is a real route, and the three routes `GS`, `FS`, and `H` all fall under the umbrella of `S` in the wiki route list. They are their own separate, relatively short routes, that all fall under the designation of shuttles. `GS` is the 42nd St shuttle in Manhattan that only stops in Times Square and Grand Central. `FS` is the Franklin Avenue shuttle that operates between Franklin Ave and Prospect Park in Brooklin. Lastly, `H` is the Rockaways shuttle.
 
 
+On to the subway entrances/exits dataset itself. First and foremost, according to wikipedia, there should be what is considered by the city 472 subway stations or 424 if the connected stations are considered single stations. I expect that the raw dataset 
 
+```{r comment=NA}
 length(unique(subway.ent.exit$station_name))
-# NYC considers 472 to be the number of subway stations in the city, 424 if connected stations are considered single stations
 nrow(subway.ent.exit %>% select(station_name, station_latitude:station_longitude) %>% distinct())
-
 nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
+```
+
+
+
+
+Now for some cleanup of the subway entrance/exit dataset:
+
+* Create a (theoretically) unique station name column by combining the division. line, and station_name
+* Gather the route names into one column and get rid of all of the missing values
+
+```{r}
+
 sub.ext.cln <- subway.ent.exit %>% 
   mutate_at(vars(division:station_name), str_to_lower) %>% 
+  # create a unique key for each station
   unite("stat_name", division:station_name, sep = "_") %>% 
-  mutate_at(vars(route1:route11), str_to_upper) %>% 
-  distinct()
+  # capitalize all of the route names (to fix the e issue)
+  mutate_at(vars(route1:route11), str_to_upper)
 length(unique(sub.ext.cln$stat_name))
 ```
 
@@ -224,18 +252,14 @@ sub.sml.test %>%
   group_by(ada, free_crossover) %>% 
   count()
 
-percent_ada <- sub.sml.test %>% 
+sub.sml.test %>% 
   group_by(stat_name) %>% 
   summarize(
     num_entry = n(),
     num_ada = sum(ada),
     percent_ada = round(num_ada * 100 / num_entry, 2)
-  )
-percent_ada %>% 
-  ggplot(aes(percent_ada)) +
-  geom_histogram(bins = 50) +
-  xlab("Percent of Exits that are ADA = TRUE")
-table(percent_ada$percent_ada)
+  ) %>% 
+  {table(.$percent_ada)}
 table(sub.sml.test$entrance_type)
 ```
 
@@ -1258,12 +1282,13 @@ boro.stat.count <- sub.boro.nogeo %>%
   summarize(
     tot_stat = n(),
     ada_stat = sum(ada),
+    not_ada = tot_stat - ada_stat,
     ada_percent = ada_stat * 100 / tot_stat
     )
   
 boro.stat.count %>% 
-  select(-ada_percent) %>% 
-  gather("stat_type", "num_stat", tot_stat:ada_stat) %>% 
+  select(-c(tot_stat, ada_percent)) %>% 
+  gather("stat_type", "num_stat", ada_stat:not_ada) %>% 
   ggplot(aes(BoroName, num_stat, fill = stat_type)) +
   geom_bar(stat = "identity", position = "dodge") +
   scale_fill_tableau()
@@ -1281,6 +1306,8 @@ neigh.stat.count <- sub.boro.nogeo %>%
 neigh.stat.count %>% 
   ggplot(aes(x = BoroName, y = ada_percent, color = BoroName)) +
   geom_jitter(size = 2, alpha = 0.8, width = 0.25) +
+  ylab("Percent ADA by Neighborhood") +
+  xlab("Borough Name") +
   scale_color_tableau()
 
 ```
@@ -1291,7 +1318,6 @@ neigh.stat.count %>%
 ```{r}
 nyc.neigh.4boro <- nyc.neigh.map %>% 
   filter(BoroName != "Staten Island")
-plot(st_geometry(nyc.neigh.4boro))
 nyc.neigh.stat.count <- st_join(sub.sf.nyc.crs, nyc.neigh.4boro) %>% 
  st_set_geometry(NULL) %>% 
   group_by(BoroName, NTAName) %>% 
@@ -1337,7 +1363,8 @@ nyc.neigh.4boro.count <- nyc.neigh.4boro %>%
     )
 nyc.neigh.4boro.count %>% 
   ggplot() +
-  geom_sf(aes(fill = tot_stat)) 
+  geom_sf(aes(fill = tot_stat)) +
+  scale_fill_viridis_c()
 nyc.neigh.count.prep <- nyc.neigh.4boro.count %>% 
   mutate(
     color_group = ifelse(
