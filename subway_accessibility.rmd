@@ -99,11 +99,9 @@ Datasets, in .csv format:
 ### shapefiles ###
 nyc.census.map <- st_read("./data/nyct2010_18a/nyct2010.shp")
 nyc.neigh.map <- st_read("./data/nynta_18d/nynta.shp")
-
-### data ###
+### subway info ###
 subway.ent.exit <- read_csv("./data/2018_update/NYC_Transit_Subway_Entrance_And_Exit_Data.csv")
 subway.by.line <- read_csv("./data/2018_update/nyc_subway_stations_grouped.csv")
-# number of subway stations by route #
 num.stat.by.rt.wiki <- read_csv("./data/2018_update/nyc_subway_num_stat_by_line.csv")
 ```
 
@@ -126,12 +124,24 @@ nyc.census.map %>%
   ggplot() +
   geom_sf(color = "#1F77B4") +
   # nyc neighborhoods outlines overlaid in orange
-  geom_sf(data = nyc.neigh.map, color = "#FF7F0E", size = 1, fill = NA)
+  geom_sf(data = nyc.neigh.map, color = "#FF7F0E", size = 1, fill = NA) +
+  ggtitle("NYC Map") +
+  xlab("Longitude") +
+  ylab("Latitude")
 ```
 
 
 With the exception of parks and airports, most neightborhood tracts include multiple census tracts. Both shapefiles also include Staten Island, for which there is no data in the subway entrances/exits dataset and therefore it will be removed. The rail system there is not considered a part of the subway system per se. 
 
+A very useful feature of the `sf` format, is that these objects are data.frames and can be treated as such for the purposes of filtering, joining, and other manipulations, as well as spatial objects. 
+
+```{r census_map_summary, comment=NA}
+summary(nyc.census.map)
+```
+
+For example, as demonstrated above, the `nyc.census.map` object includes the tract codes, the city borough name that that tract belongs to, as well as the geometry.
+
+As for the other datasets, the Subway Entrances and Exits dataset contains the most useful and relevant information for this project, but will require considerable transformation to get it into a usable format.
 
 ```{r raw_dataset_glimpse, comment=NA}
 # subway entrances/exit data:
@@ -146,27 +156,38 @@ glimpse(num.stat.by.rt.wiki)
 Preliminary to-do list:
 
 * Remove Staten Island from the maps - the subway datasets do not include the Staten Island route
-* `subway.ent.exit` - The entrances and exits dataset is very messy, needs cleaning and reogranization into a tidy format. However, it already contains geospatial coordinates for each station, which subway routes stop at that station, and ADA-Accessibility information
-* `subway.by.line` - Needs to be tidied, with each subway route as its own row
+* `subway.ent.exit`: the entrances and exits dataset is very messy, needs cleaning and reogranization into a tidy format. However, it already contains geospatial coordinates for each station, which subway routes stop at that station, and ADA-Accessibility information
+* `subway.by.line`: needs to be tidied, with each subway route as its own row
+* `num.stat.by.rt.wiki`: is fine as is
 
 
-# Preliminary analysis and light cleanup {.tabset .tabset-fade .tabset-pills}
+# Preliminary exploration and cleaning {.tabset .tabset-fade .tabset-pills}
 
+## Basic cleaning
 
-## Cleaning ?
+For the maps, Staten Island will be filtered out, the borough name will be converted to lowercase and the column names will be converted to lowercase for later convenience.
 
 ```{r nyc_map_edit, comment=NA}
-# nyc.map.4boro > nyc.census.4boro
 nyc.census.4boro <- nyc.census.map %>%  
   filter(BoroName != "Staten Island") %>% 
-  mutate(BoroName = str_to_lower(BoroName))
+  mutate(BoroName = str_to_lower(BoroName)) %>% 
+  `colnames<-`(str_to_lower(colnames(nyc.census.map)))
 nyc.neigh.4boro <- nyc.neigh.map %>% 
   filter(BoroName != "Staten Island") %>% 
-  mutate(BoroName = str_to_lower(BoroName))
+  mutate(BoroName = str_to_lower(BoroName))%>% 
+  `colnames<-`(str_to_lower(colnames(nyc.neigh.map)))
+# new column names:
+colnames(nyc.census.4boro)
+colnames(nyc.neigh.4boro)
+ggplot(nyc.neigh.4boro) +
+  geom_sf() +
+  ggtitle("NYC Neighborhoods Map\nNo Staten Island") +
+  xlab("Longitude") +
+  ylab("Latitude")
 ```
 
 
-First things first, cleanup the column names of the two subway info dataframes by converting the words to lower-case and by replacing empty spaces to make them easier to work with:
+For the other dataframes, first cleanup the column names of the two subway info dataframes by converting the words to lower-case and by replacing empty spaces to make them easier to work with:
 
 ```{r comment=NA}
 colnames(subway.ent.exit) <- colnames(subway.ent.exit) %>% 
@@ -179,10 +200,10 @@ colnames(subway.by.line) <- colnames(subway.by.line) %>%
 colnames(subway.by.line)
 ```
 
+
 Much better! 
 
 Next, the `lines` column in the `subway.by.line` dataset needs to be separated so that each subway line is its own row. 
-
 
 ```{r sub_line_tidy, comment=NA}
 sub.line.tidy <- subway.by.line %>% 
@@ -195,11 +216,11 @@ sub.line.tidy <- subway.by.line %>%
   # unnecessary column: 
   select(-route_num) %>% 
   arrange(route_name)
-glimpse(sub.line.tidy)
+head(sub.line.tidy)
 ```
 
 
-Now that the dataset is clean, it is possible to check the route names against the entrances/exits data in order to determine if there is anything odd or any typos:
+Now that that dataset is clean, it is possible to check the route names against the entrances/exits data in order to determine if there is anything odd or any typos:
 
 ```{r comment=NA}
 subway.ent.exit %>% 
@@ -213,247 +234,308 @@ subway.ent.exit %>%
   anti_join(sub.line.tidy, by = "route_name")
 ```
 
-Yes, it looks like there are four routes in the subway ent/exit df that are not in the route list. However, the `e` is simply a typo that should be changed to `E`, which is a real route, and the three routes `GS`, `FS`, and `H` all fall under the umbrella of `S` in the wiki route list. They are their own separate, relatively short routes, that all fall under the designation of shuttles. `GS` is the 42nd St shuttle in Manhattan that only stops in Times Square and Grand Central. `FS` is the Franklin Avenue shuttle that operates between Franklin Ave and Prospect Park in Brooklin. Lastly, `H` is the Rockaways shuttle.
+Yes, it looks like there are four routes in the subway entrance/exit data that are not in the route list. However, the `e` is simply a typo that should be changed to `E`, which is a real route, and the three routes `GS`, `FS`, and `H` all fall under the umbrella of `S` in the wiki route list. They are their own separate, relatively short routes, that all fall under the designation of shuttles. `GS` is the 42nd St shuttle in Manhattan that only stops in Times Square and Grand Central. `FS` is the Franklin Avenue shuttle that operates between Franklin Ave and Prospect Park in Brooklin. Lastly, `H` is the Rockaways shuttle.
 
+On to the subway entrances/exits dataset itself. First and foremost, according to wikipedia, there should be what is considered by the city 472 subway stations or 424 if the connected stations are considered single stations. I expect that the raw dataset will be off in some regard, since it was not even updated with the Second Avenue subway stations and the changes to Q route service, which also added 3 stations in Manhattan. 
 
-On to the subway entrances/exits dataset itself. First and foremost, according to wikipedia, there should be what is considered by the city 472 subway stations or 424 if the connected stations are considered single stations. I expect that the raw dataset 
-
-```{r comment=NA}
+```{r stat_name_num_check, comment=NA}
+# number of unique subway station names:
 length(unique(subway.ent.exit$station_name))
-nrow(subway.ent.exit %>% select(station_name, station_latitude:station_longitude) %>% distinct())
-nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
 ```
 
 
+That is far too few stations, but that is not a surprise given that station names are often reused, for example there are 5 "23rd Street" stations in Manhattan and 1 in Queens. Therefore, the station name column alone cannot be used as a unique key for the stations in this dataset. 
 
+What about other alternatives? The subway by line dataset had special codes and names to refer to the trunk line, such as IRT and BMT, which matches the `division` and `line` columns in the entrances/exits data. I suspect that the division, line, and station_name columns will give the unique identifier for each station. But how many unique combinations of those 3 columns are there?
+
+```{r stat_name_div_check, comment=NA}
+subway.ent.exit %>% 
+  select(division:station_name) %>% 
+  distinct() %>% 
+  head()
+subway.ent.exit %>% 
+  select(division:station_name) %>% 
+  distinct() %>% 
+  nrow()
+```
+
+There are 465 such combinations, which is close to the 472 number. Adding in 3 missing new Q-train stations brings it up to 468, but there may be more stations missing than I thought.
+
+As an aside, how many station name, latitude, and longitude combinations are there? 
+
+```{r stat_name_lat_long_count, comment=NA}
+subway.ent.exit %>% 
+  select(station_name, station_latitude:station_longitude) %>% 
+  distinct() %>% 
+  nrow()
+```
+
+There are more of those combinations than there are stations. It turns out that some stations had multiple coordinates, which is likely related to the entrances and exits, or maybe due to connected stations.
 
 Now for some cleanup of the subway entrance/exit dataset:
 
 * Create a (theoretically) unique station name column by combining the division. line, and station_name
-* Gather the route names into one column and get rid of all of the missing values
+* Fix the capitalization typo
 
-```{r}
-
-sub.ext.cln <- subway.ent.exit %>% 
+```{r sub_ext_key_create, comment=NA}
+sub.ent.w.key <- subway.ent.exit %>% 
   mutate_at(vars(division:station_name), str_to_lower) %>% 
   # create a unique key for each station
   unite("stat_name", division:station_name, sep = "_") %>% 
   # capitalize all of the route names (to fix the e issue)
-  mutate_at(vars(route1:route11), str_to_upper)
-length(unique(sub.ext.cln$stat_name))
+  mutate_at(vars(route1:route11), str_to_upper) 
+sub.ent.w.key <- sub.ent.w.key %>% 
+  select(-c(station_latitude:station_longitude)) %>% 
+  distinct() %>% 
+  left_join(
+    sub.ent.w.key %>% 
+      select(stat_name:station_longitude) %>% 
+      distinct() %>% 
+      group_by(stat_name) %>% 
+      summarize(
+        avg_stat_lat = mean(station_latitude),
+        avg_stat_long = mean(station_longitude)
+        ),
+    by = "stat_name"
+    )
+length(unique(sub.ent.w.key$stat_name))
+sub.ent.w.key %>% 
+  select(stat_name, avg_stat_lat:avg_stat_long) %>% 
+  distinct() %>% 
+  nrow()
 ```
 
-The number is a little off from the wikipedia page, another sign of how outdated this dataset is.
+Now the number of unique station names and the combination of station names and geographical locations are equal.
 
 
 ## Entrance Analysis
 
-Does the entrance information provide anything interesting? 
+Apart from the subway station location information, the entrances and exits dataset provides information on, well, the entrances and exits. What additional information does this provide? Is it useful in any way and does it give some extra insights? How many of each entrance type are there and what is the relationship between the entrance types and the ADA-accessibility rating of the station?
 
-
-```{r entrance_analysis, comment=NA}
-sub.sml.test <- sub.ext.cln %>% 
-  select(stat_name:station_longitude, entrance_latitude:entrance_longitude, route1:route11, entrance_type:entry, ada, free_crossover) %>%
-  replace_na(
-    list(
-      route1 = "", route2 = "", route3 = "", route4 = "", 
-      route5 = "", route6 = "", route7 = "", route8 = "", 
-      route9 = "", route10 = "", route11 = ""
-      )
-    ) %>% 
-  unite("routes", route1:route11, sep = "") %>% 
+```{r sub_entrance_step1, comment=NA}
+# take unique station name and entrance information, as well as the ada rating
+sub.entrances <- sub.ent.w.key %>% 
+  select(stat_name, entrance_latitude:entrance_longitude, entrance_type:entry, ada) %>%
   distinct()
-table(sub.sml.test$free_crossover)
-
-sub.sml.test %>% 
-  select(stat_name, free_crossover) %>% 
-  distinct() %>% 
-  group_by(stat_name) %>% 
-  count() %>% 
-  filter(n > 1)
-sub.sml.test %>% 
-  select(stat_name, free_crossover, ada) %>% 
-  distinct() %>% 
-  group_by(ada, free_crossover) %>% 
-  count()
-
-sub.sml.test %>% 
-  group_by(stat_name) %>% 
-  summarize(
-    num_entry = n(),
-    num_ada = sum(ada),
-    percent_ada = round(num_ada * 100 / num_entry, 2)
-  ) %>% 
-  {table(.$percent_ada)}
-table(sub.sml.test$entrance_type)
+# result:
+head(sub.entrances)
+table(sub.entrances$entrance_type)
+table(sub.entrances$ada)
 ```
 
 
-It seems that all of the exits/entrances are either ADA-accessible or none of them are, which is strange because many of the entrances are `Stairs`. More likely, the ADA rating is given to each station, but each entrance/exit is not scored. A typical accessible routes are elevators and escalators, although I believe an elevator is required for a station to be fully ADA-accessible. (source?)
+Stairs are by far the most common entrance/exit type, which is something new learned, but the ADA count by itself doesn't add much. I'm curious what the relationship between the ADA rating and the entrance type is per station:
 
-
-```{r comment=NA}
-sub.sml.test %>% 
-  group_by(station_latitude, station_longitude) %>% 
+```{r sub_entrace_per, comment=NA}
+sub.entrances %>% 
+  group_by(stat_name) %>% 
   summarize(
+    # count total number of entrances:
     num_entry = n(),
+    # ada is TRUE/FALSE - can sum to get number of ada = TRUE per station:
     num_ada = sum(ada),
-    percent_ada = round(num_ada * 100 / num_entry, 2)
+    # % ada out of total num of entrances, per station:
+    percent_ada = num_ada * 100 / num_entry
   ) %>% 
   {table(.$percent_ada)}
-sub.sml.test %>% 
+```
+
+
+The result is either the stations are either 0% ADA or 100% ADA, which indicates that the ADA TRUE/FALSE rating is given to the entire station, not the particular entrance/exit. This suddenly makes the entrance columns a lot less interesting to me, and I will remove them from consideration after a few more plots.
+
+!: WHat are the most comment entrance types for ADA-accessible and not accessible stations?
+
+```{r sub_entrance_count_plot, comment=NA}
+sub.entrances %>% 
   group_by(entrance_type, ada) %>% 
   count() %>% 
   ggplot(aes(entrance_type, n, fill = ada)) +
   geom_bar(stat = "identity", position = "dodge") +
   theme_minimal() +
+  xlab("Entrance Type") +
+  ylab("Count") +
   scale_fill_tableau()
-sub.sml.test %>% 
+```
+
+Stairs by far are the most common, and in general stations that have stair entrances are more often ADA = FALSE than not, but the size of the Stairs bars dominates the plot, so what about a different view?
+
+
+```{r sub_entrances_fill_plot, comment=NA}
+sub.entrances %>% 
   group_by(entrance_type, ada) %>% 
   count() %>% 
   ggplot(aes(entrance_type, n, fill = ada)) +
   geom_bar(stat = "identity", position = "fill") +
   theme_minimal() +
+  xlab("Entrance Type") +
+  ylab("Proportion") +
   scale_fill_tableau()
 ```
 
+This alternative view shows that Elevator entrances tend to denote ADA-accessible stations, more often than not. I tried to search, but I'm not sure what an "easement" entrance may be, it sounds like a private entrance, perhaps for utility work. A typical accessible routes are elevators and escalators, although I believe an elevator is required for a station to be fully ADA-accessible. (source?)
 
-## More cleaning
 
-```{r comment=NA}
-# note that the sta
-length(unique(subway.ent.exit$station_name))
-nrow(subway.ent.exit %>% select(station_name, station_latitude:station_longitude) %>% distinct())
-nrow(subway.ent.exit %>% select(division:station_name) %>% distinct())
-sub.ext.cln %>% 
-  select(stat_name, ada, ada_notes) %>% 
-  filter(!(is.na(ada_notes))) %>% 
-  distinct()
+## Removing entrance info and tidying more
 
-sub.stat.coord <- sub.ext.cln %>% 
-  select(stat_name:station_longitude) %>% 
+Now to remove the entrance information, since it does not seem that useful for my purpose, and to convert the route columns into a tidy format. In order to replicate the geospatial analysis done in the official report, the route information is not necessary and could be dropped at this point. However, my interest lies in how many stations are located within certain spatial areas. I intend to treat each train route stop individually and to count each train that stops at a station individual. So if 3 trains, say the 4, 5, and 6 trains, all stop at one station, I would like to be able to count each of those because the more trains stop in a given area, the more "accessible" or reachable by subway that area is.
+
+```{r sub_ent_tidy, comment=NA}
+sub.ent.sml <- sub.ent.w.key %>% 
+  # select relevant columns, discard all others from this point on
+  select(stat_name, avg_stat_lat:avg_stat_long, route1:route11, ada, ada_notes) %>% 
   distinct() %>% 
-  group_by(stat_name) %>% 
-  summarize(
-    avg_stat_lat = mean(station_latitude),
-    avg_stat_long = mean(station_longitude)
-  )
-
-sub.ext.sml <- sub.ext.cln %>% 
-  select(stat_name, route1:route11, ada, ada_notes) %>% 
-  inner_join(sub.stat.coord, by = "stat_name") %>% 
-  distinct() %>% 
+  # reformat the route columns into a long format
   gather("route_num", "route_name", route1:route11) %>% 
+  # get rid of the many NAs in the route column that were there due to the formatting
   filter(!is.na(route_name)) %>% 
   select(-route_num) %>% 
   distinct()
-glimpse(sub.ext.sml)
-sapply(sub.ext.sml, anyNA)
-length(unique(sub.ext.sml$stat_name))
-sub.ext.sml %>% 
+# new format
+dim(sub.ent.sml)
+head(sub.ent.sml)
+# number of unique stations and train route combinations:
+sub.ent.sml %>% 
   select(stat_name, route_name) %>% 
   distinct() %>% 
   nrow()
+# missing values check:
+sapply(sub.ent.sml, anyNA)
+```
 
-sub.ext.sml %>% 
+
+At least formatting wise, the subway station and route dataset is much neater, with each route now on its own row instead of in columns, along with the ADA rating and station location. I've also taken along the `ada_notes` column which is not NA for a small number of stations and should be easier to explore now that the dataset of interest is much smaller. 
+
+
+## Trouble ahead
+
+```{r ada_notes_show, comment=NA}
+sub.ent.sml %>% 
   select(stat_name, ada, ada_notes) %>% 
   distinct() %>% 
   filter(!(is.na(ada_notes)))
-sub.ext.sml %>% 
-  filter(stat_name == "ind_8 avenue_world trade center")
+```
 
-sub.ext.sml %>%
+These notes were the first real sign of trouble ahead. 
+
+Here are some of the next action plans based on these notes: 
+* Some ADA changes were under construction or in planning at the time - need to check if construction at these stations has been completed and the ADA = FALSE can be changed to TRUE
+* Some of the stations are ADA-accessible in only one direction (northbound or southbound only). In the case of this analysis, I decided to allow ADA = TRUE for the entire station if it was ADA-accessible in at least one direction, since for my purposes it did not make sense to count a station as "half-accessible". 
+* Some stations, even though from the previous steps it was determined that the stations were either all ADA-accessible or not, are not fully accessible to all the trains that stop at that station. For example, the Union Square station is rated as ADA-accessible for the L, N, Q, R, and W trains, but not for the Lexington Ave 4, 5, and 6 trains. This is a consequence of the original formatting of the data. Because for me it is important to get the count right for each individual train, I would need to correct this and change ADA = FALSE where appropriate.
+* Some stations seem to be listed twice because different trunk lines stop there. For example, again, Union Square, which is considered one station, but is listed as `bmt_broadway_union square` for the N/Q/R/Q trunk line and `bmt_canarsie_union square` for the L trunk line. 
+
+This was my first real sign of just how messy this dataset is in its current state. Most worrying for my purposes was that it turned out that for each connected station, all the train route names are repeated. For example, there is a World Trade Center stop where only the E stops. But some subway stations are connected underground by tunnels and one can transfer from one station to another. 
+
+If I filter for this station only, where only the E should stop, I instead get 5 trains at this station as a result:
+
+```{r ind_world_trade_lookup, comment=NA}
+sub.ent.sml %>% 
+  filter(stat_name == "ind_8 avenue_world trade center")
+```
+
+This is because the World Trace Center stop is connected to the Park Place stop, where the 2 and 3 stop, and Chambers St, where the A and C stop. 
+
+Now, if I select for the Park Place station information:
+
+```{r irt_park_place, comment=NA}
+sub.ent.sml %>% 
+  filter(stat_name == "irt_clark_park place")
+```
+
+Thankfully, the ADA rating is separate from the World Trade Center stop and is correctly marked as FALSE, but the issue is that all of the trains are also listed as stopping at this station, even though only the 2 and 3 trains should stop here, on top of the 1 train being listed here for some reason, even though the 1 route does not follow the 2 and 3 in this part of Manhattan. 
+
+More worrying, is that based on the data I got from wikipedia, the associated "line" names with the IND division, for example, should only be:
+
+```{r ind_line_names, comment=NA}
+sub.line.tidy %>% 
+  filter(str_detect(primary_trunk_line, "IND")) %>% 
+  select(primary_trunk_line) %>% 
+  distinct()
+```
+
+
+However, the line names for the subway entrances/exit data are far more varied:
+
+```{r ind_sub_ent_line_names, comment=NA}
+sub.ent.sml %>%
+  select(stat_name) %>% 
+  distinct() %>% 
+  # select only the IND division subway station stops
   filter(str_detect(stat_name, "ind")) %>% 
+  # separate out the different name parts again
   separate(stat_name, into = c("division", "line", "station_name"), sep = "_") %>% 
   {table(.$line)}
-sub.ext.sml %>%
-  filter(str_detect(stat_name, "irt")) %>% 
-  separate(stat_name, into = c("division", "line", "station_name"), sep = "_") %>% 
-  {table(.$line)}
-sub.ext.sml %>% 
-  filter(route_name == "G") %>% 
-  ggplot(aes(avg_stat_long, avg_stat_lat)) + 
-  geom_point() + 
-  coord_quickmap()
-# G train missing station stops between Smith 9th St and Church Ave, where the service 
+```
+
+
+Yes, the 8th Ave, 6th Ave, and Crosstown lines are there (although in a different format), but so are a number of other line names. This suggests that I cannot reliably use the line information, and maybe even the division codes to filter the subway station and train route combinations. 
+
+It also seems that the dataset was far more out of date than I expected. For example, the G Train Route is missing station stops between Smith 9th St and Church Ave, where the service was extended to some time ago. Luckily, in this case at least, those stations could just be added in by adding in a part of the F train route.
+
+```{r g_train_add, comment=NA}
+# transform the neighborhood map crs to march the subway entrance/exit data:
+nyc.map.4boro.stat.crs <- st_transform(nyc.neigh.4boro, crs = "+init=epsg:4326")
+nyc.map.4boro.stat.crs %>% 
+  ggplot() +
+  geom_sf(fill = NA) +
+  geom_point(
+    data = sub.ent.sml %>% 
+      filter(route_name == "G"),
+    aes(avg_stat_long, avg_stat_lat, color = route_name),
+    size = 2, alpha = 0.8
+    ) +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme(legend.position = "none") +
+  ggtitle("G Train Route (Outdated)")
 # should add those in - follows the F train here, get the slice of stations: 
-sub.ext.sml %>% 
+sub.ent.sml %>% 
   filter(route_name == "F") %>% 
   arrange(avg_stat_lat) %>% 
   filter(avg_stat_lat > 40.62976 & avg_stat_lat < 40.68030)
-sub.ext.sml %>% 
-  filter(route_name == "F") %>% 
-  arrange(avg_stat_lat) %>% 
-  filter(avg_stat_lat > 40.62976 & avg_stat_lat < 40.68030 & str_detect(stat_name, "4")) %>% 
-  ggplot(aes(avg_stat_long, avg_stat_lat)) +
-  geom_point()
-sub.ext.sml %>% 
-  filter(route_name == "F") %>% 
-  arrange(avg_stat_lat) %>% 
-  filter(avg_stat_lat > 40.62976 & avg_stat_lat < 40.68030) %>% 
-  ggplot(aes(avg_stat_long, avg_stat_lat)) +
-  geom_point() +
-  coord_quickmap()
-
 # G train is considered IND - grab that 4th ave station
-sub.ext.sml.rt.fix <- sub.ext.sml %>% 
+sub.ent.sml <- sub.ent.sml %>% 
   bind_rows(
-    sub.ext.sml %>% 
+    sub.ent.sml %>% 
       filter(route_name == "F") %>% 
       arrange(avg_stat_lat) %>% 
       filter(avg_stat_lat > 40.63612 & avg_stat_lat < 40.67358 & str_detect(stat_name, "ind")) %>% 
       mutate(route_name = "G")
 )
-
-
-nyc.map.4boro %>% filter(str_detect(NTAName, "park") | str_detect(NTAName, "Airport")) %>% ggplot() +geom_sf()
-nyc.map.4boro %>% 
-  filter(!(str_detect(NTAName, "park") | str_detect(NTAName, "Airport"))) %>% 
-  ggplot(aes(Shape_Area)) +
-  geom_histogram()
-nyc.map.4boro.crs.geo <- st_transform(nyc.map.4boro, crs = "+init=epsg:4326")
-
-sub.ext.sml.rt.fix %>% 
-  filter(route_name == "F" | route_name == "G") %>% 
-  ggplot(aes(avg_stat_long, avg_stat_lat, color = route_name)) +
-  geom_point(size = 2, alpha = 0.8) +
-  coord_quickmap()
-nyc.map.4boro.crs.geo %>% 
+# Updated G train route:
+nyc.map.4boro.stat.crs %>% 
   ggplot() +
-  geom_sf() +
+  geom_sf(fill = NA) +
   geom_point(
-    data = sub.ext.sml.rt.fix %>% 
+    data = sub.ent.sml %>% 
       filter(route_name == "F" | route_name == "G"),
     aes(avg_stat_long, avg_stat_lat, color = route_name),
     size = 2, alpha = 0.8
-    ) +
-  theme_minimal()
-nyc.map.4boro.crs.geo %>% 
-  ggplot() +
-  geom_sf() +
-  geom_point(
-    data = sub.ext.sml.rt.fix %>% 
-      filter(route_name == "F"),
-    aes(avg_stat_long, avg_stat_lat, color = route_name),
-    size = 2, alpha = 0.8
-    ) +
-  theme_minimal()
-
-
-
-
-sub.ext.sml.rt.fix %>% 
-  select(stat_name, ada, ada_notes) %>% 
-  distinct() %>% 
-  filter(!(is.na(ada_notes)))
-
-
-# GS and S routes are redundant - refer to the same thing, the grand central shuttle between times square and grand central
-
-# solution - filter out "S" route, change GS to ada = FALSE
+    )+
+  xlab("Longitude") +
+  ylab("Latitude") +
+  scale_color_discrete(name = "Route") +
+  ggtitle("G and F Train Routes (Updated)")
 ```
 
-To check:
+
+The updated route length is correct, but now there are too many stations than expected:
+
+```{r}
+# new number of G train stations:
+sub.ent.sml %>%
+  filter(route_name == "G") %>% 
+  nrow()
+num.stat.by.rt.wiki %>% 
+  filter(route_name == "G")
+```
+
+At this point, I'm starting to think that I'll need to manually check through the station and train associations, but first I will go back to the ada_notes issue and fix that before moving on.
+
+
+## ADA fixes and hitting a wall
+
+
+To fix:
 
 * ind_8 avenue_50th st / TRUE / Southbound Only - Leave as ada = TRUE (no changes)
 * ind_8 avenue_world trade center / TRUE / Construction - ada = TRUE for E only 
@@ -469,13 +551,13 @@ To check:
 * irt_pelham_hunts point av / FALSE / in planning - complete, set ada = TRUE     
 * ind_queens boulevard_forest hills-71st av / FALSE / in planning - complete, set ada = TRUE
 
-Note: This dataset has not been updated for the BMT Broadway Line / Yellow Line / NQRW train changes, namely it still includes the old Q route that went into Queens, and does not include the 3 new stations that were opened along 2nd Ave in Manhattan, all of which are ADA-Accessible.
 
+An additional small fixt that I noticeds is that there are two redundant routes: GS and S routes that refer to the same thing, the grand central shuttle between times square and grand central. Therefore I will filter out the "S" route and change the GS ADA column to FALSE, since it is not ADA-accessible at neither Times Square nor Grand Central.
 
-## ADA fixes and hitting a wall
+I chose to keep each change as a separate mutate call simply to keep track of the changes, although it is inefficient.
 
-```{r comment = NA}
-sub.ext.ada.updt <- sub.ext.sml.rt.fix %>% 
+```{r ada_notes_fix, comment=NA}
+sub.ent.ada.updt <- sub.ent.sml %>% 
   # change world trade center station ada
   mutate(ada = ifelse((stat_name == "ind_8 avenue_world trade center" & route_name != "E"), FALSE, ada)) %>% 
   # change times square shuttle ada, filter out extra "S" route
@@ -483,10 +565,10 @@ sub.ext.ada.updt <- sub.ext.sml.rt.fix %>%
   mutate(ada = ifelse(route_name == "GS", FALSE, ada)) %>% 
   # change 4/5/6 at union square to ada = FALSE
   mutate(ada = ifelse(
-      (
-        (stat_name == "bmt_broadway_union square" | stat_name == "bmt_canarsie_union square") &
-        (route_name == "4" | route_name == "5" | route_name == "6")
-      ), FALSE, ada)) %>% 
+      ((stat_name == "bmt_broadway_union square" | stat_name == "bmt_canarsie_union square") &
+         (route_name == "4" | route_name == "5" | route_name == "6")), 
+      FALSE, ada
+      )) %>% 
   # change kingsbridge rd ada = TRUE
   mutate(ada = ifelse(stat_name == "ind_concourse_kingsbridge rd", TRUE, ada)) %>% 
   # change Lex / 23rd St stop to TRUE
@@ -494,66 +576,48 @@ sub.ext.ada.updt <- sub.ext.sml.rt.fix %>%
   # change J/Z at Brooklyn Bridge / City Hall to ada = FALSE
   mutate(ada = ifelse(
     (stat_name == "irt_lexington_brooklyn bridge-city hall" & (route_name == "J" | route_name == "Z")),
-    FALSE, ada)) %>% 
+    FALSE, ada
+    )) %>% 
   # change irt_lexington_canal st to ada = TRUE for 6 train only
   mutate(ada = ifelse(
     (stat_name == "irt_lexington_canal st" & route_name != "6"), FALSE, ada
-  )) %>% 
+    )) %>% 
   # change rt 6 hunts point av to ada = TRUE
   mutate(ada = ifelse(stat_name == "irt_pelham_hunts point av", TRUE, ada)) %>% 
   # convert the forst hills / 71st ave station to ada = TRUE for all lines
   mutate(ada = ifelse(stat_name == "ind_queens boulevard_forest hills-71st av", TRUE, ada)) %>% 
+  # can get rid of the ada_notes column now
   select(-ada_notes) %>% 
   distinct()
-dim(sub.ext.sml.rt.fix)
-dim(sub.ext.ada.updt)
-table(sub.ext.ada.updt$ada)
-
-sub.ext.ada.updt %>% 
-  filter(route_name == "GS")
-sub.ext.ada.updt %>% 
+dim(sub.ent.sml)
+dim(sub.ent.ada.updt)
+sub.ent.sml %>% 
   filter(route_name == "S")
-percent.ada.updt <- sub.ext.ada.updt %>% 
-  group_by(stat_name) %>% 
-  summarize(
-    num_entry = n(),
-    num_ada = sum(ada),
-    percent_ada = round(num_ada * 100 / num_entry, 2)
-  )
-hist(percent.ada.updt$percent_ada)
-table(percent.ada.updt$percent_ada)
-percent.ada.updt %>% 
-  group_by(num_entry) %>% 
-  count() %>% 
-  ggplot(aes(num_entry, n)) +
-  geom_bar(stat = "identity")
-percent.ada.updt %>%
-  group_by(num_ada) %>% 
-  count() %>% 
-  ggplot(aes(num_ada, n)) +
-  geom_bar(stat = "identity")
+sub.ent.ada.updt %>% 
+  filter(route_name == "S")
 ```
 
+Got rid of a few rows by eliminating the redundant S route, and by removing the ada_notes column. 
 
-This process brought up an additional problem - lines are assigned to routes that they do not belong in, and there are extra stops (probably because some stations are connected and technically the entrances/exits apply to those routes as well).
+Now back to the previous problem of trains being assigned to subway stations that they do not stop at and all the previous problems brought up earlier.
 
+How does the number of stations in the subway entrances/exit dataset per route compare to the expected number (according to wikipedia)?
 
-```{r comment= NA}
-stat.by.route.count <- sub.ext.ada.updt %>% 
+```{r sub_ent_stat_count, comment= NA}
+sub.ent.rt.count <- sub.ent.ada.updt %>% 
   group_by(route_name) %>% 
   count()  
-stat.by.route.count %>%  
-  ggplot(aes(route_name, n)) +
-  geom_bar(stat = "identity")
-stat.route.join <- stat.by.route.count %>% 
+stat.route.join <- sub.ent.rt.count %>% 
   full_join(num.stat.by.rt.wiki, by = "route_name") %>% 
+  # W exits in the wiki df, but not in the sub ent/exit df
   filter(route_name != "W")
 stat.route.join %>% 
   ggplot(aes(num_stations_norm, n)) +
+  # equality line for refence:
   geom_abline(intercept = 0, slope = 1, size = 1, alpha = 0.8) +
   geom_point(size = 2, alpha = 0.8) +
-  xlab("stat num by route (wiki)") +
-  ylab("stat num by route (count)")
+  xlab("Station num by route (wiki)") +
+  ylab("Station num by route (actual count)")
 stat.route.join %>% 
   filter(num_stations_norm == n)
 ```
@@ -576,7 +640,7 @@ Solution 2: Manually go through route-by-route to make sure that the information
 Problems: Tedious manual work, and likely easy to mess up. Will have to manually add-in new 2nd Ave Q-train stations, along with some others probably.
 
 
-# Cleaning each route {.tabset .tabset-fade .tabset-pills}
+# Manual data cleaning {.tabset .tabset-fade .tabset-pills}
 
 
 ## Reasoning and Resources
@@ -599,14 +663,14 @@ Starting slow, with the shuttles:
 ```{r shuttle_update, comment=NA}
 num.stat.by.rt.wiki %>% 
   filter(route_name == "GS")
-sub.ext.ada.updt %>% 
+sub.ent.ada.updt %>% 
   filter(route_name == "GS") %>% 
   arrange(stat_name)
-sub.stat.num.updt <- sub.ext.ada.updt %>% 
+sub.stat.num.updt <- sub.ent.ada.updt %>% 
   filter(!(route_name == "GS" & (str_detect(stat_name, "flushing") | str_detect(stat_name, "lexington"))))
 num.stat.by.rt.wiki %>% 
   filter(route_name == "FS")
-stat.by.route.count %>% 
+sub.ent.rt.count %>% 
   filter(route_name == "FS")
 sub.stat.num.updt %>% 
   filter(route_name == "FS") %>% 
@@ -823,6 +887,7 @@ sub.stat.num.updt.4 <- sub.stat.num.updt.B %>%
 
 ## Switch to primary trunk lines
 
+After fixing one or two per trunk line, I figured that the other train routes along that line would have similar problems for most stations (and similar fixes). 
 
 ```{r by_trunk_lines, comment=NA}
 # J train, goal: 30
@@ -1193,33 +1258,26 @@ sub.stat.num.updt.final %>%
   inner_join(num.stat.by.rt.wiki, by = "route_name") %>% 
   filter(n != num_stations_norm) %>%
   filter(route_name != "B")
+nrow(sub.stat.num.updt.final)
 ```
+
+At last! The subway station route counts match.
 
 
 # Analysis and Visualization
 
 ```{r comment=NA}
-nyc.map.4boro <- nyc.census.map %>%  
-  filter(BoroName != "Staten Island") %>% 
-  mutate(BoroName = str_to_lower(BoroName))
-tract.cent <- st_centroid(nyc.map.4boro)
-
 sub.cln.sf <- st_as_sf(sub.stat.num.updt.final, coords = c("avg_stat_long", "avg_stat_lat"), crs = 4326)
-sub.sf.nyc.crs <- st_transform(sub.cln.sf, crs = st_crs(nyc.map.4boro))
-
-plot(st_geometry(nyc.map.4boro), col = "grey", border = "white")
-plot(sub.sf.nyc.crs, pch = 16, cex = 0.25, col = "#D55E00", add = TRUE)
-
-sub.boro <- st_join(sub.sf.nyc.crs, nyc.map.4boro)
+sub.sf.nyc.crs <- st_transform(sub.cln.sf, crs = st_crs(nyc.census.4boro))
+nyc.neigh.4boro %>% 
+  ggplot() +
+  geom_sf(fill = NA) +
+  geom_sf(data = sub.sf.nyc.crs, size = 1, color = "#D55E00")
 ```
 
 
 ```{r}
-
-sub.boro.nogeo <- st_set_geometry(sub.boro, NULL) %>% 
-  as_tibble() %>% 
-  select(stat_name:route_name, BoroName:BoroCT2010, NTAName, Shape_Area)
-stat.by.route <- sub.boro.nogeo %>% 
+stat.by.route <- sub.stat.num.updt.final %>% 
   group_by(route_name) %>% 
   summarize(
     total_stat = n(),
@@ -1298,51 +1356,59 @@ stat.by.route %>%
 
 
 ```{r boro_plots, comment=NA}
+sub.boro <- st_join(sub.sf.nyc.crs, nyc.census.4boro)
+sub.boro.nogeo <- st_set_geometry(sub.boro, NULL) %>% 
+  as_tibble() %>% 
+  select(stat_name:route_name, boroname:boroct2010, ntaname, shape_area)
+nyc.census.4boro %>% filter(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) %>% ggplot() +geom_sf()
+nyc.census.4boro %>% 
+  filter(!(str_detect(ntaname, "park") | str_detect(ntaname, "Airport"))) %>% 
+  ggplot(aes(shape_area)) +
+  geom_histogram()
+tract.cent <- st_centroid(nyc.census.4boro)
+
 sub.boro.nogeo
 
 boro.stat.count <- sub.boro.nogeo %>%
-  group_by(BoroName) %>% 
+  group_by(boroname) %>% 
   summarize(
     tot_stat = n(),
     ada_stat = sum(ada),
     not_ada = tot_stat - ada_stat,
     ada_percent = ada_stat * 100 / tot_stat
     )
-  
 boro.stat.count %>% 
   select(-c(tot_stat, ada_percent)) %>% 
   gather("stat_type", "num_stat", ada_stat:not_ada) %>% 
-  ggplot(aes(BoroName, num_stat, fill = stat_type)) +
+  ggplot(aes(boroname, num_stat, fill = stat_type)) +
   geom_bar(stat = "identity", position = "dodge") +
   scale_fill_tableau()
 boro.stat.count %>% 
-  ggplot(aes(BoroName, ada_percent, fill = BoroName)) + 
+  ggplot(aes(boroname, ada_percent, fill = boroname)) + 
   geom_bar(stat= "identity") +
   scale_fill_tableau()
 neigh.stat.count <- sub.boro.nogeo %>% 
-  group_by(BoroName, NTAName) %>% 
+  group_by(boroname, ntaname) %>% 
   summarize(
     tot_stat = n(),
     ada_stat = sum(ada),
     ada_percent = ada_stat * 100 / tot_stat
     )
 neigh.stat.count %>% 
-  ggplot(aes(x = BoroName, y = ada_percent, color = BoroName)) +
+  ggplot(aes(x = boroname, y = ada_percent, color = boroname)) +
   geom_jitter(size = 2, alpha = 0.8, width = 0.25) +
   ylab("Percent ADA by Neighborhood") +
   xlab("Borough Name") +
   scale_color_tableau()
-
 ```
 
 
 
 
 ```{r}
-
 nyc.neigh.stat.count <- st_join(sub.sf.nyc.crs, nyc.neigh.4boro) %>% 
  st_set_geometry(NULL) %>% 
-  group_by(BoroName, NTAName) %>% 
+  group_by(boroname, NTAName) %>% 
   summarize(
     tot_stat = n(),
     ada_stat = sum(ada),
@@ -1351,7 +1417,7 @@ nyc.neigh.stat.count <- st_join(sub.sf.nyc.crs, nyc.neigh.4boro) %>%
   ungroup()
 glimpse(nyc.neigh.stat.count)
 nyc.neigh.stat.count %>% 
-  ggplot(aes(BoroName, tot_stat, color = BoroName)) +
+  ggplot(aes(boroname, tot_stat, color = boroname)) +
   geom_jitter(size = 2, alpha = 0.8, width = 0.25) +
   scale_color_tableau()
 data_summary <- function(x) {
@@ -1361,7 +1427,7 @@ data_summary <- function(x) {
    return(c(y=m,ymin=ymin,ymax=ymax))
 }
 nyc.neigh.stat.count %>% 
-  ggplot(aes(BoroName, tot_stat, color = BoroName, fill = BoroName)) +
+  ggplot(aes(boroname, tot_stat, color = boroname, fill = boroname)) +
   geom_violin() +
   stat_summary(fun.data = data_summary, color = "black", alpha = 0.8) +
   scale_color_tableau() +
@@ -1369,7 +1435,7 @@ nyc.neigh.stat.count %>%
   xlab("Borough") +
   ylab("Subway Stations per Neighborhood")
 nyc.neigh.stat.count %>% 
-  ggplot(aes(BoroName, ada_stat, color = BoroName, fill = BoroName)) +
+  ggplot(aes(boroname, ada_stat, color = boroname, fill = boroname)) +
   geom_violin() +
   stat_summary(fun.data = data_summary, color = "black", alpha = 0.8) +
   scale_color_tableau() +
@@ -1380,7 +1446,7 @@ nyc.neigh.stat.count %>%
 nyc.neigh.4boro.count <- nyc.neigh.4boro %>% 
   full_join(
     nyc.neigh.stat.count %>% 
-      select(-BoroName),
+      select(-boroname),
     by = "NTAName"
     )
 nyc.neigh.4boro.count %>% 
@@ -1426,20 +1492,20 @@ summary(nyc.neigh.count.prep$percent_ada)
 
 
 ```{r census_tract_buffer, comment=NA}
-tract.cent <- st_centroid(nyc.map.4boro)
-nyc.map.4boro %>% 
+tract.cent <- st_centroid(nyc.census.4boro)
+nyc.census.4boro %>% 
   ggplot() +
   geom_sf(color = "#BFBFBF") +
   geom_sf(data = tract.cent, size = 1, color = "#4E79A7")
 # half-mile buffer
 tract.cent.halfmi.buff <- st_buffer(tract.cent, dist = 2640)
-nyc.map.4boro %>% 
+nyc.census.4boro %>% 
   ggplot() +
   geom_sf(color = "#BFBFBF") +
   geom_sf(data = tract.cent.halfmi.buff, alpha = 0.2, color = "#F28E2B") +
   geom_sf(data = tract.cent, size = 1, color = "#4E79A7")
 #example
-nyc.map.4boro %>% 
+nyc.census.4boro %>% 
   ggplot() +
   geom_sf(color = "#BFBFBF") +
   geom_sf(data = tract.cent.halfmi.buff %>% filter(BoroCT2010 == 1009800 | BoroCT2010 == 1018400 ), alpha = 0.8, color = "#F28E2B", fill = "#F28E2B") +
@@ -1453,7 +1519,7 @@ sub.buffer.join <- st_join(sub.sf.nyc.crs, tract.cent.halfmi.buff) %>%
 sub.buffer.join %>% 
   filter(BoroCT2010 == 1018400)
 
-nyc.map.4boro.test <- nyc.map.4boro %>% 
+nyc.map.4boro.test <- nyc.census.4boro %>% 
   full_join(
     sub.buffer.join %>% 
       group_by(BoroCT2010) %>% 
@@ -1465,7 +1531,7 @@ nyc.map.4boro.test <- nyc.map.4boro %>%
     by = "BoroCT2010"
     )
 length(unique(sub.buffer.join$BoroCT2010))
-length(unique(nyc.map.4boro$BoroCT2010))
+length(unique(nyc.census.4boro$BoroCT2010))
 nyc.map.4boro.test %>% 
   filter(BoroCT2010 == 1009800 | BoroCT2010 == 1018400)
 
@@ -1509,36 +1575,36 @@ sub.sf.nyc.crs.boro <- sub.sf.nyc.crs %>%
     sub.boro %>% 
       st_set_geometry(NULL) %>% 
       as_tibble() %>% 
-      select(stat_name, BoroName) %>% 
+      select(stat_name, boroname) %>% 
       distinct(),
     by = "stat_name"
   )
 
 sub.join.borolim <- sub.sf.nyc.crs.boro %>% 
   # manhattan
-  filter(BoroName == "manhattan") %>% 
+  filter(boroname == "manhattan") %>% 
   st_join(
     tract.cent.halfmi.buff %>% 
-      filter(BoroName == "manhattan")
+      filter(boroname == "manhattan")
     ) %>% 
   st_set_geometry(NULL) %>% 
   bind_rows(
     # bronx
     sub.sf.nyc.crs.boro %>% 
-      filter(BoroName == "bronx") %>% 
+      filter(boroname == "bronx") %>% 
       st_join(
         tract.cent.halfmi.buff %>% 
-          filter(BoroName == "bronx")
+          filter(boroname == "bronx")
         ) %>% 
       st_set_geometry(NULL)
     ) %>% 
   bind_rows(
     # brooklyn and queens together
     sub.sf.nyc.crs.boro %>% 
-      filter(BoroName == "brooklyn" | BoroName == "queens") %>% 
+      filter(boroname == "brooklyn" | boroname == "queens") %>% 
       st_join(
         tract.cent.halfmi.buff %>% 
-          filter(BoroName == "brooklyn" | BoroName == "queens")
+          filter(boroname == "brooklyn" | boroname == "queens")
         ) %>% 
       st_set_geometry(NULL)
     )
