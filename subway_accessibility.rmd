@@ -18,50 +18,49 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 ## Background
 
-TO EDIT
+The initial inspiration for this work was the Data for Democracy NYC Accessibility project ([Project GitHub Repo](https://github.com/Data4Democracy/nyc-accessibility)), which focused on exploring the lack of ADA-accessible stations in the New York City subway system. For those that are unfamiliar, ADA-accessible subway stations are those that comply with the Americans with Disabilities Act of 1990 and, among other requirements, provide elevator service such that an individual can get from street level to the turnstiles and to the train platform without having to use a staircase. 
 
-This project was initially sparked by the Data for Democracy NYC Accessibility project ( [ Project GitHub Repo](https://github.com/Data4Democracy/nyc-accessibility) ).
+New York City's subway system is one of the busiest in the world, with a weekday average ridership of 5.6 million riders as of 2017, but it is also the [least accessible transit system in the United States](https://www.nytimes.com/2017/04/25/nyregion/new-york-subway-disability-lawsuit.html). While the ADA focuses on individuals with disabilities, an ADA-compliant system is friendlier to all, from parents with young children and strollers to the elderly. An excuse for the state of things might be the age of the system since the NYC subway is among one of the older systems in the country. However, other mass transit systems that opened around the same time, such as the ones in Boston and Chicago, have a far higher percentage of compliant stations.
 
-* ADA-Accessibility defintion - 
-* NYC subway has a funding problem
-* Link news articles 
-* Plan set to update the system, but NYC has a history of bypassing upgrades to improve/increase assessibility
-
-Assessibility concerns usually bring to mind someone in a wheelchair, but an accessible system can help many:
-  + parents with young children and strollers
-  + people with temporary/not obvious injuries 
-  + senior citizens 
-  + someone who may have spent all day working on their feet
+The accessibility problem is a symptom of the larger set of issues that have plagued the city's transit system for years now. The subways are slow and overcrowded, the trains manage to be on time only 65% of the time (although this has increased to [70% as of December](https://www.bloomberg.com/news/articles/2018-12-17/nyc-subway-chief-warns-of-death-spiral-without-40-billion-fix)), and the whole of the MTA, the body responsible for the subway along with other transit systems, has been [financially mismanaged](https://www.nytimes.com/2017/11/18/nyregion/new-york-subway-system-failure-delays.html) to the [brink of ruin](https://www.theguardian.com/us-news/2018/nov/20/new-york-city-subway-bus-death-spiral-mta-fares). As an example of said mismanagement, the MTA invested in its bus system and Access-a-Ride, a door-to-door service, in an effort to increase accessibility instead of converting subway stations. But, not only is a system of buses not comparable in terms of speed and service quality to the subway, [this decision wound up costing the MTA more money than it would have to retrofit elevators in subway stations ](https://ny.curbed.com/2017/9/21/16315042/nyc-subway-wheelchair-accessible-ada). As of today, plans are underway to fix the centuries-old signal systems, increase train speeds, and to install elevators at existing stations to make them accessible. But given the previous track record, there is cause for concern that the NYC subway system can turn it around, or maybe [Elon Musk will save the day in the end](https://ny.curbed.com/2018/12/10/18134373/nyc-subway-speed-limit-changes). 
 
 
-## Project Problems and Goals
+## Project Goals
 
-TO EDIT
+### Goals
 
-Main goal: Imitate and improve upon the spatial analysis conducted in the: [July 2018 NYC Comptroller Report ](https://comptroller.nyc.gov/reports/service-denied-accessibility-and-the-new-york-city-subway-system/)
+The Office of NYC Comptroller released [a report in July of 2018](https://comptroller.nyc.gov/reports/service-denied-accessibility-and-the-new-york-city-subway-system/) on the state of accessibility in the NYC subway system. It included a geospatial analysis of NYC neighborhoods and subway station locations, as well as the potential financial impact of subway inaccessibility on the individuals living in those neighborhoods.
 
-Problems with report to address:
+I will aim to recreate the map below that was featured in the report, which differentiates neighborhoods based on whether their boundaries contain at least one ADA-accessible station, at least one subway station but no ADA-accessible stations, or no subway station at all.
 
-Problem 1: NYC neighborhoods are areas that people can easily identify with, but they are very large in terms of area
-Proposed solution: Use the 2010 Census tracts instead, which are smaller in terms of area
+![](./data/images/ADASubwayStation.png)
 
-Problem 2: The report counts stations that are only within the boundaries of a neighboorhood, this is limiting and may be inaccurate if the station is located on the edge of a large neighborhood
-Proposed solution: Consider stations only within a certain radius of a geographical point, such as the center of the census tracts
-
-Problem 3: Report focuses on the presence/absence of a subway station or ADA-accessible subway station, but no info on how many stations are in the neighborhood
-Proposed solution: Count unique route station stops, including the total number and ADA-accessible stations, within a given geographical area 
+In addition, I will go further and resolve what I see as some of the problems with the report.
 
 
-## Data Science Skills Utilized
+### Problems with report and solutions:
 
-TO EDIT
+Problem 1: NYC neighborhoods are areas that people can easily identify with, but they are very large in terms of geographic area. 
 
-I had been curious about geospatial analysis for a while, and this project was a great excuse to learn more. However, this project also turned out to require quite a lot of data cleaning, especially of the Subway Entrances and Exits dataset.
+Proposed solution: Use the 2010 Census tracts instead, which are smaller in area, allowing for a more fine-grained analysis.
 
-The skills utilized and demonstrated throughout this work are:
+Problem 2: The report counts stations that are only within the boundaries of a neighboorhood. This is limiting and may be an inaccurate representation of accessibility if the station is located on the edge of a large neighborhood.
 
-* Data cleaning - I had severely underestimated how messy and out-of-date the NYC Subway Entrances and Exits dataset was. It needed quite a lot of manual curation in the end to reach a ready state.
-* Geospatial analysis in R - mapping, spatial joins, converting non-spatial data into spatial format, andmore, mainly with the help of the `sf` package (LINK). As an aside, this [DataCamp course on the sf package, led by Zev Ross](https://www.datacamp.com/courses/spatial-analysis-in-r-with-sf-and-raster), was immensely helpful.
+Proposed solution: Consider stations only within a certain radius of a geographical point, such as the center of the census tracts.
+
+Problem 3: Report focuses on the presence/absence of a subway station, but no info on how many stations are in the vicinity.
+
+Proposed solution: Count unique route station stops, including the total number of stations and ADA-accessible stations, within a given geographical area.
+
+
+## Data science skills utilized
+
+I had been curious about geospatial analysis for a while, and this project was a great excuse to learn more. However, this project also turned out to require quite a lot of data cleaning, especially for the Subway Entrances and Exits dataset.
+
+In the end, the main skills utilized and demonstrated throughout this work are:
+
+* Data cleaning - I had severely underestimated how messy and out-of-date the NYC Subway Entrances and Exits dataset was. It needed quite a lot of manual curation to reach an analysis-ready state.
+* Geospatial analysis in R - mapping, spatial joins, converting non-spatial data into a spatial format, and more, mainly with the help of the [sf package](https://cran.r-project.org/web/packages/sf/index.html). As an aside, this [DataCamp course on the sf package, led by Zev Ross](https://www.datacamp.com/courses/spatial-analysis-in-r-with-sf-and-raster), was immensely helpful as a foundation.
 
 
 # Setup {.tabset .tabset-fade .tabset-pills}
@@ -85,14 +84,16 @@ theme_set(theme_minimal())
 
 ## Data
 
-Shapefiles, imported using the `st_read` function from the `sf` package
+Shapefiles, imported using the `st_read` function from the `sf` package:
+
 * `nyc.census.map`: Shapefile of NYC 2010 census tract boundaries
 * `nyc.neigh.map`: Shapefile of NYC neighborhoods
 
-Datasets, in .csv format:
-* `subway.ent.exit`: Subway Entrances and Exits dataset, which provides information about which subway routes stop at each station, whether the stations are ADA-accessible or not, as well as the station latitude and longitude coordinates, but in a non-spatial format with no coordinate reference system.  
-* `subway.by.line`: In NYC, the subway routes are grouped into "trunk lines", which indicates that in at least some sections of the route they share many of the same stops. Some may be local or express in different areas of the city, and they may split somewhere, but in at least some sections they overlap significantly. Each line grouping also has its own distinct color. This dataset provides information on line grouping by trunk line and color codes.
-* `num.stat.by.rt.wiki`: Numer of station stops by route according to wikipedia. This will be used later to clean the subway entrances/exits dataset. As an aside, NYC subway service changes over the course of the day and the weekend, with some lines switching from express to local or going out of serivce all together, for example. In this analysis, I will be be focusing on the weekday rush-hour service because, in theory, that is when the most people should be using the subway and it is most needed. 
+Datasets, in `.csv` format:
+
+* `subway.ent.exit`: Subway Entrances and Exits dataset, which provides information about what train routes stop at each station, whether the stations are ADA-accessible or not, as well as the station latitude and longitude coordinates, but in a non-spatial format with no coordinate reference system.   
+* `subway.by.line`: In NYC, the subway routes are grouped into "trunk lines", typically based on their route through Manhattan. The grouping indicates which trains share many of the same statio stops. Each trunk line also has its own distinct assigned color that appears on the subway route symbols. This dataset provides information on the grouping of routes by trunk line and the color codes.
+* `num.stat.by.rt.wiki`: The number of station stops by route according to their Wikipedia pages. This will be used later to clean the subway entrances and exits dataset. As an aside, NYC subway service changes over the course of the day and the weekend, with some lines switching from express to local or going out of service altogether. In this analysis, I will be focusing on the weekday rush-hour service because, in theory, that is when the most people should be using the subway and it is most needed. 
 
 
 ```{r data_import, comment=NA}
@@ -110,13 +111,13 @@ Data sources:
 * NYC Census Map shapefile: [NYC Department of City Planning Open Data Website](https://www1.nyc.gov/site/planning/data-maps/open-data/districts-download-metadata.page)
 * NYC Neighborhood Tabulation Areas Map shapefile: [NYC Department of City Planning Open Data Website](https://www1.nyc.gov/site/planning/data-maps/open-data/dwn-nynta.page)
 * Subway Entrances and Exits: [Open Data NY](https://data.ny.gov/Transportation/NYC-Transit-Subway-Entrance-And-Exit-Data/i9wp-a4ja)
-* Subway by Line Info: Copied from the [NYC Subway Wikipedia Page](https://en.wikipedia.org/wiki/New_York_City_Subway)
-* Number of Subway Stations by Route: Collected from each individual subway route page, such as this page for [the E subway service](https://en.wikipedia.org/wiki/New_York_City_Subway)
+* Subway by Line Info: Copied from the [NYC Subway Wikipedia Page, Nomenclature section](https://en.wikipedia.org/wiki/New_York_City_Subway)
+* Number of Subway Stations by Route: Manually collected from each individual subway route page, such as this page for [the E subway service](https://en.wikipedia.org/wiki/New_York_City_Subway)
 
 
 ## Data Preview
 
-The NYC census tract and neighborhood `sf` files can be visualized in a number of ways, including ggplot2 and the `plot` function. Here, ggplot is used to layer the census tracts in blue and the neighborhood boundaries in orange to demonstrate the difference, for those not familiar with the city. 
+The NYC census tract and neighborhood `sf` files can be visualized in a number of ways, including with the `ggplot2` package and the `plot` function. Here, `ggplot` is used to layer the census tracts in blue and the neighborhood boundaries in orange to demonstrate the difference, for those not familiar with the city. 
 
 ```{r nyc_maps_plot, comment=NA}
 # nyc census tracts map in blue
@@ -131,17 +132,17 @@ nyc.census.map %>%
 ```
 
 
-With the exception of parks and airports, most neightborhood tracts include multiple census tracts. Both shapefiles also include Staten Island, for which there is no data in the subway entrances/exits dataset and therefore it will be removed. The rail system there is not considered a part of the subway system per se. 
+Most neighborhoods include multiple census tracts, with the exception of parks and airports, and census tracts are contained within neighborhoods. Both shapefiles include Staten Island, for which there is no data in the subway entrances/exits dataset and therefore it will be removed from further consideration.
 
-A very useful feature of the `sf` format, is that these objects are data.frames and can be treated as such for the purposes of filtering, joining, and other manipulations, as well as spatial objects. 
+A very useful feature of the `sf` format is that these objects are data frames and can be treated as such for the purposes of filtering, joining, and other manipulations, as well as being spatial objects. 
 
 ```{r census_map_summary, comment=NA}
 summary(nyc.census.map)
 ```
 
-For example, as demonstrated above, the `nyc.census.map` object includes the tract codes, the city borough name that that tract belongs to, as well as the geometry.
+For example, as demonstrated above, the `nyc.census.map` object includes the tract codes, the city borough name that the tract belongs to, as well as the spatial geometry.
 
-As for the other datasets, the Subway Entrances and Exits dataset contains the most useful and relevant information for this project, but will require considerable transformation to get it into a usable format.
+As for the other datasets, the Subway Entrances and Exits dataset contains the most useful and relevant information for this project. However, it will require considerable transformation to get it into a usable format.
 
 ```{r raw_dataset_glimpse, comment=NA}
 # subway entrances/exit data:
@@ -155,10 +156,10 @@ glimpse(num.stat.by.rt.wiki)
 
 Preliminary to-do list:
 
-* Remove Staten Island from the maps - the subway datasets do not include the Staten Island route
-* `subway.ent.exit`: the entrances and exits dataset is very messy, needs cleaning and reogranization into a tidy format. However, it already contains geospatial coordinates for each station, which subway routes stop at that station, and ADA-Accessibility information
-* `subway.by.line`: needs to be tidied, with each subway route as its own row
-* `num.stat.by.rt.wiki`: is fine as is
+* Remove Staten Island from the maps, the subway datasets do not include Staten Island transit routes
+* `subway.ent.exit`: The entrances and exits dataset is very messy. It needs cleaning and the route columns need to be reorgranized into a tidy format. Will also need to evaluate how useful some of the other columns about the specific entrances and exits data might be.
+* `subway.by.line`: Needs to be tidied, with each subway route as its own row.
+* `num.stat.by.rt.wiki`: Is fine as is.
 
 
 # Preliminary exploration and cleaning {.tabset .tabset-fade .tabset-pills}
@@ -1368,21 +1369,34 @@ rm(list = ls(pattern = "sub.stat.num.updt."))
 
 # Analysis and Visualization
 
-Final map result:
+Now that the subway station dataset is relatively clean and tidy, it's possible to finally move on to do some geospatial analysis with it and the NYC shapefiles. Before that, although the station dataset includes the station spatial coordinates, it is not a spatial object in the same sense that the map shapefiles are. The latitude and longitude will have to be interpreted through a coordinate reference system. Earlier, I had changed the reference system of one maps, but here I will turn the entire subway dataset into a sf spatial object for further analysis. This is done by first converting it into a spatial object, which needs the correct crs information. Then, the crs of the new spatial object can be converted to match the NYC map shapefile units.
 
-```{r comment=NA}
-sub.cln.sf <- st_as_sf(sub.stat.final, coords = c("avg_stat_long", "avg_stat_lat"), crs = 4326)
+```{r convert_sub_df_to_sf, comment=NA}
+sub.cln.sf <- st_as_sf(sub.stat.final, coords = c("avg_stat_long", "avg_stat_lat"), crs = "+init=epsg:4326")
+head(sub.cln.sf)
 sub.sf.nyc.crs <- st_transform(sub.cln.sf, crs = st_crs(nyc.census.4boro))
+head(sub.sf.nyc.crs)
+```
+
+
+The subway station stop dataset now has a geometry column with in US foot units and can be combined and layered with the map shapefiles for visualization and spatial analysis purposes. 
+
+Here are the station stops visualized over the NYC neighborhoods map, colored according to their traditional service line colors:
+
+```{r sub_line_viz, comment=NA}
 nyc.neigh.4boro %>% 
   ggplot() +
-  geom_sf(fill = NA) +
+  # plot the NYC neighborhoods map
+  geom_sf() +
+  # layer the station stops:
   geom_sf(
     data = sub.sf.nyc.crs %>% 
       mutate(route_name = ifelse(route_name %in% c("FS", "GS", "H"), "S", route_name)) %>% 
       left_join(sub.line.tidy, by = "route_name"), 
-    size = 1.5, aes(color = primary_trunk_line)
+    size = 1.5, aes(color = primary_trunk_line), alpha = 0.8
     ) +
   scale_color_manual(
+    # color according to trunk line
     values = c("#fccc0a", "#a7a9ac", "#996633", "#6cbe45", "#2850ad", "#ff6319", "#ee352e", "#b933ad", "#00933c", "#808183"),
     name = "Subway Trunk Line"
     )
