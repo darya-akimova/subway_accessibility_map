@@ -72,11 +72,13 @@ Packages used:
 * tidyverse - omnibus package for data import, wrangling, and cleaning 
 * sf - geospatial analysis
 * ggthemes - ggplot2 theme and palette add-on 
+* mapview - easy to use package for creating interactive maps
 
 ```{r packages, comment=NA}
 library(tidyverse)
 library(sf)
 library(ggthemes)
+library(mapview)
 # minimal theme for nice plots throughout the project
 theme_set(theme_minimal())
 ```
@@ -1626,6 +1628,8 @@ Manhattan has by far, the highest number of accessible subway route stations. On
 
 ## Analysis by Neighborhood
 
+Now to zoom in a bit more in terms of spatial scale, let's look at subway stations by neighborhood. I will use the same dataframe as the one used for the borough comparison, but now I will group by neighborhood and calculate the same summary statistics as before. I also group by borough, which does not add anything since the neighborhood names (in the ntanames column) are unique, but it is an easy way to carry along the neighborhood borough names for analysis down the line.
+
 ```{r by_neighborhood, comment=NA}
 neigh.stat.count <- sub.boro.nogeo %>% 
   # grouping by borough allows for that column to be carried along:
@@ -1636,13 +1640,30 @@ neigh.stat.count <- sub.boro.nogeo %>%
     not_ada = tot_stat - ada_stat,
     ada_percent = ada_stat * 100 / tot_stat
     ) %>% 
-  mutate(boro_order = factor(boroname, levels = boro.stat.count$boroname, labels = c("Manhattan", "Brooklyn", "Queens", "Bronx")))
+  # plot order column, same order as for the borough analysis (total stations)
+  mutate(boro_order = factor(boroname, levels = boro.stat.count$boroname, labels = c("Manhattan", "Brooklyn", "Queens", "Bronx"))) %>% 
+  ungroup()
+neigh.stat.count %>% 
+  group_by(boro_order) %>% 
+  summarize(
+    mean_sub_stat = mean(tot_stat),
+    med_sub_stat = median(tot_stat),
+    mean_ada_stat = mean(ada_stat),
+    med_ada_stat = median(ada_stat)
+    )
 neigh.stat.count %>% 
   ggplot(aes(boro_order, tot_stat, color = boro_order)) +
   geom_jitter(size = 2, alpha = 0.8, width = 0.25) +
   scale_color_tableau() +
   xlab("Borough") +
   ylab("Total Number of Stations per Neighborhood") +
+  theme(legend.position = "none")
+neigh.stat.count %>% 
+  ggplot(aes(boro_order, ada_stat, color = boro_order)) +
+  geom_jitter(size = 2, alpha = 0.8, width = 0.25) +
+  scale_color_tableau() +
+  xlab("Borough") +
+  ylab("Number of ADA Subway Stations per Neighborhood") +
   theme(legend.position = "none")
 data_summary <- function(x) {
    m <- mean(x)
@@ -1657,10 +1678,10 @@ neigh.stat.count %>%
   scale_color_tableau() +
   scale_fill_tableau() +
   xlab("Borough") +
-  ylab("Subway Stations per Neighborhood") +
+  ylab("Total Number of Stations per Neighborhood") +
   theme(legend.position = "none")
 neigh.stat.count %>% 
-  ggplot(aes(boroname, ada_stat, color = boroname, fill = boroname)) +
+  ggplot(aes(boro_order, ada_stat, color = boro_order, fill = boro_order)) +
   geom_violin() +
   stat_summary(fun.data = data_summary, color = "black", alpha = 0.8) +
   scale_color_tableau() +
@@ -1674,6 +1695,43 @@ neigh.stat.count %>%
   xlab("Borough Name") +
   scale_color_tableau() +
   theme(legend.position = "none")
+neigh.stat.count %>% 
+  ggplot(aes(boro_order, ada_percent, color = boro_order, fill = boro_order)) +
+  geom_violin() +
+  stat_summary(fun.data = data_summary, color = "black", alpha = 0.8) +
+  scale_color_tableau() +
+  scale_fill_tableau() +
+  xlab("Borough") +
+  ylab("Percent ADA by Neighborhood")
+neigh.stat.count %>% 
+  select(-c(not_ada:boro_order)) %>% 
+  gather(key = "count_type", value = "n", tot_stat:ada_stat) %>% 
+  ggplot(aes(n, fill = count_type)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ count_type) +
+  scale_fill_tableau()
+# dist skewed, maybe to do with land area:
+nyc.neigh.4boro %>% 
+  filter(!(str_detect(ntaname, "park") | str_detect(ntaname, "Airport"))) %>% 
+  ggplot(aes(shape_area)) +
+  geom_histogram(bins = 30)
+neigh.stat.count %>% 
+  inner_join(nyc.neigh.4boro, by = "ntaname") %>% 
+  select(boro_order, ntaname:ada_percent, shape_area) %>%
+  mutate(
+    area_mi = shape_area / 5280**2,
+    `Total Stations` = tot_stat / area_mi,
+    `ADA Stations` = ada_stat / area_mi
+    ) %>% 
+  select(boro_order, `Total Stations`:`ADA Stations`) %>% 
+  gather("stat_type", "per_sqmi", `Total Stations`:`ADA Stations`) %>% 
+  ggplot(aes(boro_order, per_sqmi, color = boro_order)) +
+  geom_jitter(size = 2, alpha = 0.8, width = 0.25) +
+  scale_color_tableau() +
+  facet_wrap(~ stat_type, ncol = 1, scales = "free_y") +
+  theme(legend.position = "none") +
+  xlab("Borough") +
+  ylab("Number of stations per sq mile")
 ```
 
 
@@ -1695,10 +1753,7 @@ nyc.census.4boro %>%
   filter(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) %>% 
   ggplot() + 
   geom_sf()
-nyc.census.4boro %>% 
-  filter(!(str_detect(ntaname, "park") | str_detect(ntaname, "Airport"))) %>% 
-  ggplot(aes(shape_area)) +
-  geom_histogram()
+
 
 
 nyc.neigh.count.prep <- nyc.neigh.4boro.count %>% 
@@ -1722,6 +1777,9 @@ nyc.neigh.count.prep %>%
   scale_fill_manual(values = c("grey30", "#0072B2", "#E69F00", "#999999", "#bae4b3"), name = NULL) +
   geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", fill = "black", size = 1.5, pch = 21) +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank())
+nyc.neigh.count.prep %>% 
+  select(boroname, ntaname, ntacode, color_group, tot_stat:ada_percent) %>% 
+  mapview(zcol = "color_group", col.regions = c("grey30", "#0072B2", "#E69F00", "#999999", "#bae4b3"))
 ```
 
 
@@ -1734,7 +1792,7 @@ nyc.parks.air.sf <- nyc.census.4boro %>%
 nyc.neigh.count.prep %>%
   ggplot() +
   geom_sf(aes(fill = tot_stat)) +
-  scale_fill_viridis_c(option = "A", name = "Total Stations") +
+  scale_fill_viridis_c(option = "D", name = "Total Stations") +
   geom_sf(data = nyc.parks.air.sf, fill =  "grey30") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank())
 
@@ -1742,7 +1800,7 @@ nyc.neigh.count.prep %>%
   mutate(ada_stat = ifelse(ada_stat == 0, NA, ada_stat)) %>% 
   ggplot() +
   geom_sf(aes(fill = ada_stat)) +
-  scale_fill_viridis_c(option = "A", name = "ADA stations") +
+  scale_fill_viridis_c(option = "D", name = "ADA stations") +
   geom_sf(data = nyc.parks.air.sf, fill =  "grey30") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank())
 
@@ -1750,53 +1808,101 @@ nyc.neigh.notada <- nyc.neigh.count.prep %>%
   filter(ada_stat == 0)
 nyc.neigh.count.prep <- nyc.neigh.count.prep %>% 
   mutate(ada_percent = ifelse(ada_percent == 0, NA, ada_percent))
-nyc.neigh.count.prep$ada_per_breaks <- cut(nyc.neigh.count.prep$ada_percent, breaks = seq(0, 100, 20))
-
+nyc.neigh.count.prep$ada_per_breaks <- as.character(cut(nyc.neigh.count.prep$ada_percent, breaks = seq(0, 100, 20)))
 nyc.neigh.count.prep %>% 
+  # insert the neighborhoods with subway stations (not ADA) into the fill code:
+  mutate(
+    ada_per_breaks = ifelse(
+      ntacode %in% nyc.parks.air.sf$ntacode, "Park / Airport",
+      ifelse(
+        ntacode %in% nyc.neigh.notada$ntacode, "No accessible stations", ada_per_breaks
+        )
+      )
+    ) %>% 
   ggplot() +
   geom_sf(aes(fill = ada_per_breaks)) +
-  scale_fill_manual(values = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494"), na.value = "gray50", name = "Percent ADA") + 
-  geom_sf(data = nyc.neigh.notada, fill = "darkgoldenrod") +
-  geom_sf(data = nyc.parks.air.sf, fill = "grey30") +
+  scale_fill_manual(values = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494", "#E69F00", "grey30"), na.value = "gray50", name = "Percent ADA") + 
+  geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", fill = "black", size = 1.5, pch = 21) +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank())
-summary(nyc.neigh.count.prep$ada_percent)
+nyc.neigh.count.prep %>% 
+  #select(boroname, ntaname, ntacode, color_group, tot_stat:ada_percent) %>% 
+  mutate(
+    ada_per_breaks = ifelse(
+      ntacode %in% nyc.parks.air.sf$ntacode, "Park / Airport",
+      ifelse(
+        ntacode %in% nyc.neigh.notada$ntacode, "No accessible stations", ada_per_breaks
+        )
+      ),
+    ada_per_breaks = factor(ada_per_breaks)
+    )
+nyc.neigh.count.prep %>% 
+  mutate(
+    ada_per_breaks = ifelse(
+      ntacode %in% nyc.parks.air.sf$ntacode, "Park / Airport",
+      ifelse(
+        ntacode %in% nyc.neigh.notada$ntacode, "No accessible stations", ada_per_breaks
+        )
+      ),
+    ada_per_breaks = replace_na(ada_per_breaks, "No stations")
+    ) %>% 
+   select(boroname, ntaname, ntacode, ada_per_breaks, tot_stat:ada_percent) %>% 
+  mapview(zcol = "ada_per_breaks", col.regions = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494", "#E69F00", "gray50", "grey20"))
 ```
 
 
 ## Census tract buffer analysis
 
-```{r census_tract_buffer, comment=NA}
+Now to pivot to the census tracts. The tracts themselves are too small in area to learn something useful by simply counting the number of stations within the area of each tract. Instead, I will use buffer analysis to determine how many stations are within a certain range from each census tract center.
+
+First, the center of each tract can be found using the `st_centroid` function from the `sf` package:
+
+```{r census_centroid, comment=NA}
 tract.cent <- st_centroid(nyc.census.4boro)
+# result mapped: 
 nyc.census.4boro %>% 
   ggplot() +
   geom_sf(color = "#BFBFBF") +
   geom_sf(data = tract.cent, size = 1, color = "#4E79A7")
+```
+
+Then, those centroid points can be used as the center to draw a circle with a chosen radius, specified in feet with the `dist` argument in the `st_buffer` function call below. I chose to draw buffers with a half-mile radius, or 2,640 ft, which may even be too generous of a radius for someone getting around in a wheelchair.
+
+The resulting geometry is too chaotic to map all at once, but I can select two census tracts to demonstrate as an example.
+
+```{r}
 # half-mile buffer
 tract.cent.halfmi.buff <- st_buffer(tract.cent, dist = 2640)
-nyc.census.4boro %>% 
-  ggplot() +
-  geom_sf(color = "#BFBFBF") +
-  geom_sf(data = tract.cent.halfmi.buff, alpha = 0.2, color = "#F28E2B") +
-  geom_sf(data = tract.cent, size = 1, color = "#4E79A7")
 #example
 nyc.census.4boro %>% 
   ggplot() +
   geom_sf(color = "#BFBFBF") +
-  geom_sf(data = tract.cent.halfmi.buff %>% filter(boroct2010 == 1009800 | boroct2010 == 1018400 ), alpha = 0.8, color = "#F28E2B", fill = "#F28E2B") +
+  geom_sf(
+    data = tract.cent.halfmi.buff %>%
+      filter(boroct2010 == 1009800 | boroct2010 == 1018400 ),
+    alpha = 0.8, color = "#F28E2B", fill = "#F28E2B"
+    ) +
   geom_sf(data = sub.sf.nyc.crs, color = "black", size = 1)
+```
 
-sub.buffer.join <- st_join(sub.sf.nyc.crs, tract.cent.halfmi.buff) %>% 
-  st_set_geometry(NULL)
 
-sub.buffer.join %>% 
+Above are two examples of buffers drawn represented as orange circles, with the subway station stops overlaid in black. These new spatial objects inherited the geometry from the NYC tract maps, and have the same properties as other sf objects. From here, it's only a matter of using a spatial join to determine how many subway station stops fall into each buffer. 
+
+Below is an example of the join for the more northern buffer, the one that's at the top of Central Park. This buffer captures 5 separate subway stations: 2 for the red line and 3 for the green line. 
+
+```{r census_buff_example, comment=NA}
+st_join(sub.sf.nyc.crs, tract.cent.halfmi.buff) %>% 
+  st_set_geometry(NULL) %>% 
   filter(boroct2010 == 1018400) %>% 
   select(stat_name:route_name, boroct2010) %>% 
   arrange(stat_name, route_name)
+```
 
 
+Because multiple trains routes stop at most of these station, by chosen my method, I would then count that the census tract associated with that buffer is in range of 9 subway station route stops.
 
-### separate the spatial join by borough ###
+For the full join, I will break it up by borough, because all boroughs, except for Brooklyn and Queens, are completely separated by water. 
 
+```{r}
 sub.sf.nyc.crs.boro <- sub.sf.nyc.crs %>% 
   inner_join(
     sub.boro %>% 
@@ -1842,7 +1948,9 @@ nyc.4boro.buff.join <- nyc.census.4boro %>%
       group_by(boroct2010) %>% 
       summarize(
         tot_stat = n(),
-        ada_stat = sum(ada)
+        ada_stat = sum(ada),
+        not_ada = tot_stat - ada_stat,
+        ada_percent = ada_stat * 100 / tot_stat
       ) %>% 
       ungroup(),
     by = "boroct2010"
@@ -1854,6 +1962,12 @@ nyc.4boro.buff.join %>%
   geom_sf(aes(fill = tot_stat)) +
   scale_fill_viridis_c(option = "A") +
   geom_sf(data = sub.sf.nyc.crs, color = "white", size = 1)
+nyc.4boro.buff.join %>% 
+  ggplot() +
+  geom_sf(aes(fill = tot_stat), color = "purple4") +
+  scale_fill_viridis_c(option = "D")
+
+mapview(nyc.4boro.buff.join, zcol = "tot_stat")
 nyc.4boro.buff.join %>% 
     mutate(
     color_group = ifelse(
@@ -1871,7 +1985,7 @@ nyc.4boro.buff.join %>%
   ggplot() +
   geom_sf(aes(fill = color_group)) +
   scale_fill_manual(values = c("grey30", "#0072B2", "#E69F00", "#999999", "#bae4b3")) +
-  geom_sf(data = nyc.neigh.4boro, color = "white", size = 1, fill = NA) +
+  geom_sf(data = nyc.neigh.4boro, color = "white", size = 0.5, fill = NA) +
   geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", fill = "black", size = 1, pch = 21)
   #geom_sf(data = sub.sf.nyc.crs, color = "#BFBFBF", size = 1)
 
