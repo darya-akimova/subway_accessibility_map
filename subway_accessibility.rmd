@@ -18,9 +18,9 @@ Due to the length of the project, I've broken it up into multiple sections and u
 
 ## Background
 
-The initial inspiration for this work was the Data for Democracy NYC Accessibility project ([Project GitHub Repo](https://github.com/Data4Democracy/nyc-accessibility)), which focused on exploring the lack of ADA-accessible stations in the New York City subway system. For the that are unfamiliar, ADA-accessible subway stations are those that comply with the Americans with Disabilities Act of 1990. Among other requirements, they must be designed such that an individual using a wheelchair or other mobility device can get from street level to the turnstiles and onto the train without having to use a staircase. 
+The initial inspiration for this work was the Data for Democracy NYC Accessibility project ([Project GitHub Repo](https://github.com/Data4Democracy/nyc-accessibility)), which focused on exploring the lack of ADA-accessible stations in the New York City subway system. For those that are unfamiliar, ADA-accessible subway stations are those that comply with the Americans with Disabilities Act of 1990. Among other requirements, they must be designed such that an individual using a wheelchair or other mobility device can get from street level to the turnstiles and onto the train. 
 
-New York City's subway system is one of the busiest in the world, with a weekday average ridership of 5.6 million riders as of 2017, but it is also the [least accessible transit system in the United States](https://www.nytimes.com/2017/04/25/nyregion/new-york-subway-disability-lawsuit.html). While the ADA focuses on individuals with disabilities, an ADA-compliant system is friendlier to all, from parents with young children and strollers to the elderly. An excuse for the state of things might be the age of the system since the NYC subway is among one of the older systems in the country. However, other mass transit systems that opened around the same time, such as the ones in Boston and Chicago, have a far higher percentage of compliant stations.
+New York City's subway system is one of the busiest in the world, with a weekday average ridership of 5.6 million riders as of 2017, but it is also the [least accessible transit system in the United States](https://www.nytimes.com/2017/04/25/nyregion/new-york-subway-disability-lawsuit.html). While the ADA focuses on individuals with disabilities, an ADA-compliant system is friendlier to all, from parents with young children and strollers to the elderly. An excuse for the state of things might be the age of the system since the NYC subway is among one of the older ones in the country. However, other mass transit systems that opened around the same time, such as the ones in Boston and Chicago, have a far higher percentage of compliant stations.
 
 The accessibility problem is a symptom of the larger set of issues that have plagued the city's transit system for years now. The subways are slow and overcrowded, the trains manage to be on time only 65% of the time (although this has increased to [70% as of December 2018](https://www.bloomberg.com/news/articles/2018-12-17/nyc-subway-chief-warns-of-death-spiral-without-40-billion-fix)), and the whole of the MTA, the body responsible for the subway along with other transit systems in the area, has been [financially mismanaged](https://www.nytimes.com/2017/11/18/nyregion/new-york-subway-system-failure-delays.html) to the [brink of ruin](https://www.theguardian.com/us-news/2018/nov/20/new-york-city-subway-bus-death-spiral-mta-fares). As an example of said mismanagement, the MTA invested in its bus system and Access-a-Ride, a door-to-door service, in an effort to increase accessibility instead of converting subway stations. But, not only is a system of buses not comparable in terms of speed and service quality to the subway, [this decision wound up costing the MTA more money than it would have to retrofit elevators in subway stations ](https://ny.curbed.com/2017/9/21/16315042/nyc-subway-wheelchair-accessible-ada). As of today, plans are underway to fix the centuries-old signal systems, increase train speeds, and to install elevators at existing stations to make them accessible. But given the previous track record, there is cause for concern about whether the NYC subway system can turn things around, or maybe [Elon Musk will save the day in the end](https://ny.curbed.com/2018/12/10/18134373/nyc-subway-speed-limit-changes). 
 
@@ -35,16 +35,16 @@ I will aim to recreate the map below that was featured in the report, which diff
 
 ![](./data/images/ADASubwayStation.png)
 
-In addition, I will go further and resolve what I see as some of the problems with the report.
+In addition, I will go further to address what I see as some of the problems with the report.
 
 
-### Problems with report and solutions
+### Problems with report and potential solutions
 
 Problem 1: NYC neighborhoods are areas that people can quickly identify with, but they can be enormous in terms of geographic area and may not give an accurate picture of accessibility.
 
 Proposed solution: Use the 2010 Census tracts instead, which are smaller in area than neighborhoods, allowing for a more fine-grained analysis.
 
-Problem 2: The report counts stations that are only within the boundaries of a neighboorhood. This strategy is limiting and may be an inaccurate representation of accessibility if the station is located on the edge of a large neighborhood.
+Problem 2: The report counts stations that are only within the boundaries of a neighboorhood. This strategy is limiting and may be an inaccurate representation of accessibility if, for example, the station is located on the edge of a large neighborhood.
 
 Proposed solution: Use buffer analysis to consider stations only within a certain radius of a geographical point, such as the center of the census tracts.
 
@@ -70,9 +70,9 @@ In the end, the main data science-related skills that are the focus of this proj
 Packages used:
 
 * tidyverse - omnibus package for data import, wrangling, and cleaning (never leave home without it)
-* sf - geospatial analysis
+* sf - for geospatial data analysis
 * ggthemes - ggplot2 theme and palette add-on
-* mapview - easy to use package for creating interactive maps
+* mapview - easy to use package for creating quick interactive maps
 
 ```{r packages, comment=NA}
 library(tidyverse)
@@ -93,7 +93,7 @@ Shapefiles, imported using the `st_read` function from the `sf` package:
 
 Datasets, in `.csv` format:
 
-* `subway.ent.exit`: Subway Entrances and Exits dataset, which provides information about what train routes stop at each station, whether the stations are ADA-accessible or not, as well as the station latitude and longitude coordinates, but in a non-spatial format with no coordinate reference system.   
+* `subway.ent.exit`: The Subway Entrances and Exits dataset that provides information about what train routes stop at each station, whether the stations are ADA-accessible or not, as well as the station latitude and longitude coordinates, but in a non-spatial format with no coordinate reference system.   
 * `subway.by.line`: In NYC, the subway routes are grouped into "trunk lines", typically based on their route through Manhattan, and the grouping can indicate which trains share many of the same station stops. Each trunk line also has its own distinct assigned color that appears on the subway route symbols. This dataset lists the routes that belong to each trunk line and their respective color codes.
 * `num.stat.by.rt.wiki`: This is a list of the number of station stops by route, according to their Wikipedia pages. The data will be used later to clean the subway entrances and exits dataset. NYC subway service changes over the course of the day and the weekend, with some lines switching from express to local or going out of service altogether. In this analysis, I will be focusing on the weekday rush-hour service because, in theory, that is when the most number of people should be using the subway and it is most needed. 
 
@@ -144,22 +144,22 @@ summary(nyc.census.map)
 
 For example, as demonstrated above, the `nyc.census.map` object includes the tract codes, the city borough name that the census tract belongs to, as well as the spatial geometry.
 
-As for the other datasets, the Subway Entrances and Exits dataset contains the most useful and relevant information for this project. However, it will require considerable transformation to get it into a usable format.
+As for the other datasets, the Subway Entrances and Exits dataset contains the most useful and relevant information for this project. However, it will require considerable transformation to get it into a usable format, and will have to be given a CRS and converted into a spatial `sf` object at some point.
 
 ```{r raw_dataset_glimpse, comment=NA}
 # subway entrances/exit data:
 glimpse(subway.ent.exit)
 # subway route groupings and color codes:
 glimpse(subway.by.line)
-# num of station stops by route:
+# number of station stops by route:
 glimpse(num.stat.by.rt.wiki)
 ```
 
 
 Let's start with the following:
 
-* Remove Staten Island from the maps, the subway datasets do not include Staten Island transit routes
-* `subway.ent.exit`: The entrances and exits dataset is very messy. It needs cleaning and the route columns need to be reorganized into a tidy format. Will also need to evaluate how useful some of the other columns about the specific entrances and exits data might be.
+* Remove Staten Island from the maps since the subway datasets do not include Staten Island transit routes
+* `subway.ent.exit`: The entrances and exits dataset is very messy. It needs cleaning, and the route columns need to be reorganized into a tidy format. Will also need to evaluate how useful some of the other columns about the specific entrances and exits data might be.
 * `subway.by.line`: Needs to be tidied, with each subway route on its own row.
 * `num.stat.by.rt.wiki`: Is fine as is.
 
@@ -182,10 +182,12 @@ colnames(nyc.census.4boro)
 colnames(nyc.neigh.4boro)
 # new map (neighborhoods only): 
 ggplot(nyc.neigh.4boro) +
-  geom_sf() +
+  geom_sf(aes(fill = boroname), color = "white") +
   ggtitle("NYC Neighborhoods Map\n(No Staten Island)") +
   xlab("Longitude") +
-  ylab("Latitude")
+  ylab("Latitude") +
+  scale_fill_manual(values = c("#76B7B2", "#F28E2B","#4E79A7", "#E15759"), name = "Borough") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 
@@ -210,21 +212,18 @@ Next, the `lines` column in the `subway.by.line` dataset needs to be separated a
 
 ```{r sub_line_tidy, comment=NA}
 sub.line.tidy <- subway.by.line %>% 
-  # separate the route names into their own columns (wide format):
-  separate(lines, into = c(paste("route", 1:4, sep = "_")), remove = FALSE) %>% 
-  # gather the separated route names into one column (long format)
-  gather("route_num", "route_name", route_1:route_4) %>% 
-  # remove extra rows created from extra columns where there fewer than 4 routes for that line:
-  filter(!is.na(route_name)) %>% 
-  # unnecessary column: 
-  select(-route_num) %>% 
-  arrange(route_name)
+  # converts lines into a list conlumn
+  transform(lines = strsplit(lines, "_")) %>%
+  # unnests the list column and converts each into a separate row
+  unnest(lines) %>% 
+  # rename to match other df
+  rename(route_name = lines)
 # result:
 head(sub.line.tidy)
 ```
 
 
-Now that that dataset is clean, it is possible to check the route names against the entrances/exits data in order to determine if there is anything odd or any typos.
+Now that that dataset is clean, it is possible to check the route names against the entrances/exits data in order to determine if there is anything odd.
 
 ```{r route_name_diff, comment=NA}
 subway.ent.exit %>% 
@@ -239,7 +238,7 @@ subway.ent.exit %>%
 ```
 
 
-Yes, it looks like there are four routes in the subway entrance/exit data that are not on the Wikipedia route list. However, the `e` is simply a typo that should be changed to `E`, which is a real route, and the three routes `GS`, `FS`, and `H` all fall under the umbrella of `S` in the wiki route list. The three are separate, relatively short routes, that are designated as shuttles (hence the "S" designation). `GS` is the 42nd St shuttle in Manhattan that only stops in Times Square and Grand Central. `FS` is the Franklin Avenue shuttle that operates between Franklin Ave and Prospect Park in Brooklyn. Lastly, `H` is the Rockaways shuttle in Queens. The discrepancy in route names is something to keep in mind for later, but not an error that needs to be fixed.
+Yes, it looks like there are four routes in the subway entrance/exit data that are not on the Wikipedia route list. However, the `e` is simply a typo that should be changed to `E`, which is a real route, and the three routes `GS`, `FS`, and `H` all fall under the umbrella of `S` in the wiki route list. The three are separate, relatively short routes that are designated as shuttles (hence the "S" designation). `GS` is the 42nd St shuttle in Manhattan that only stops in Times Square and Grand Central. `FS` is the Franklin Avenue shuttle that operates between Franklin Ave and Prospect Park in Brooklyn. Lastly, `H` is the Rockaways shuttle in Queens. The discrepancy in route names is something to keep in mind for later, but not an error that needs to be fixed.
 
 It is time to switch focus to the dataset that is the core of this project: the subway entrances and exits data. According to Wikipedia, the official city count is that there are 472 individual subway stations in NYC, or 424 if connected stations are counted as a single station. I expect that the raw dataset will be off to some extent because it has not even been updated with the opening of the Second Avenue Subway and the changes to Q train service, which added 3 stations in Manhattan. So how many subway stations are there in the data right now?
 
@@ -251,7 +250,7 @@ length(unique(subway.ent.exit$station_name))
 
 That is far too few stations, but it's not a surprise given that station names are often reused in NYC. For example, there are five "23rd Street" stations in Manhattan and one in Queens. Therefore, the `station_name` column alone cannot be used as a unique key for the stations in this dataset. 
 
-What about other alternatives? The subway by line dataset had special codes and names to refer to the trunk line, such as IRT and BMT, which seem to match the `division` and `line` columns in the entrances/exits data. I suspect that the `division`, `line`, and `station_name` columns will give the unique identifier for each station. But how many distinct combinations of those three columns are there?
+What are some other options? The subway by line dataset had special codes and names to refer to the trunk line, such as IRT and BMT, which seem to match the `division` and `line` columns in the entrances/exits data. I suspect that the `division`, `line`, and `station_name` columns will give the unique identifier for each station. But how many distinct combinations of those three columns are there?
 
 ```{r stat_name_div_check, comment=NA}
 # what the columns look like:
@@ -267,7 +266,7 @@ subway.ent.exit %>%
 ```
 
 
-There are 465 such combinations, which is close to the expected 472 number. Adding in 3 missing new Q train stations brings the number up to 468, but there may be more stations missing from the dataset than I thought.
+There are 465 such combinations, which is close to the expected 472 number. Adding in 3 missing new Q train stations brings the number up, but there may be more stations missing from the dataset than I thought.
 
 As an aside, how many station name, latitude, and longitude combinations are there? 
 
@@ -279,13 +278,13 @@ subway.ent.exit %>%
 ```
 
 
-The count of the station name, latitude, and longitude combinations is more than there are stations, or even division/line/station name combinations, which suggests that the geographical coordinates are not the best choices for a unique key. It turns out that some stations had multiple sets of geographical coordinates. This may be related to the entrances and exits locations, or maybe due to connected stations.
+The count of the unique station name, latitude, and longitude combinations is more than there are stations, or even division/line/station name combinations, which suggests that the geographical coordinates are not the best choices for a unique key. On further exploration, it turned out that some stations had multiple sets of coordinates. This may be related to the entrances and exits locations, or possibly due to physical connections between stations.
 
 Based on the above, the next steps for the cleanup of the subway entrance/exit dataset are:
 
-* Create a unique station name column by combining the division, line, and station name
+* Create a unique station name column by combining the division, line, and station name which will be treated as the unique key column from now on
 * Fix the capitalization typo in the route columns
-* To fix the issue of the same station having multiple geographical coordinates, take the average of the latitude and longitude for each station and then use the averages as the station location coordinates
+* To fix the issue of the same station having multiple geographical coordinates, take the average of the latitude and longitude for each station and then use these values as the station location coordinates
 
 ```{r sub_ext_key_create, comment=NA}
 sub.ent.w.key <- subway.ent.exit %>% 
@@ -294,6 +293,8 @@ sub.ent.w.key <- subway.ent.exit %>%
   unite("stat_name", division:station_name, sep = "_") %>% 
   # capitalize all of the route names (to fix the e issue)
   mutate_at(vars(route1:route11), str_to_upper) 
+# result:
+head(sub.ent.w.key %>% select(stat_name:station_longitude))
 # coordinates fix:
 sub.ent.w.key <- sub.ent.w.key %>% 
   # get rid of original coordinates:
@@ -358,7 +359,7 @@ sub.ent.w.key %>%
 
 The result is that the stations are either 0% ADA or 100% ADA, which indicates that the ADA TRUE/FALSE rating is given to the entire station and not to the particular entrance/exit. This suddenly makes the entrance columns a lot less interesting to me, and I will remove them from consideration after a few more plots.
 
-But first, let's ask what are the most comment entrance/exit types for ADA-accessible and not accessible stations?
+But first, let’sa  sk what the most comment entrance/exit types for ADA-accessible and not accessible stations are?
 
 ```{r sub_entrance_count_plot, comment=NA}
 sub.ent.w.key %>% 
