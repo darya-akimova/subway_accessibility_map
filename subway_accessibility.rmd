@@ -359,7 +359,7 @@ sub.ent.w.key %>%
 
 The result is that the stations are either 0% ADA or 100% ADA, which indicates that the ADA TRUE/FALSE rating is given to the entire station and not to the particular entrance/exit. This suddenly makes the entrance columns a lot less interesting to me, and I will remove them from consideration after a few more plots.
 
-But first, let’sa  sk what the most comment entrance/exit types for ADA-accessible and not accessible stations are?
+But first, let's ask what the most common entrance/exit types for ADA-accessible and not accessible stations are?
 
 ```{r sub_entrance_count_plot, comment=NA}
 sub.ent.w.key %>% 
@@ -371,7 +371,7 @@ sub.ent.w.key %>%
   xlab("Entrance/Exit Type") +
   ylab("Count") +
   scale_fill_tableau() +
-  ggtitle("Entrance/exit count by ADA rating and type")
+  ggtitle("Entrance/Exit count by ADA rating and type")
 ```
 
 
@@ -387,18 +387,18 @@ sub.ent.w.key %>%
   xlab("Entrance/Exit Type") +
   ylab("Proportion") +
   scale_fill_tableau() +
-  ggtitle("Entrance/exit count by ADA rating and type\n(Bars fill position)")
+  ggtitle("Entrance/Exit count by ADA rating and type\n(Bars fill position)")
 ```
 
 
-This alternative view shows that "Elevator" entrances tend to be linked to ADA-accessible stations. I tried to search, but I'm not sure what an "Easement" entrance may be. It seems to indicate a private entrance, perhaps meant to be used for utility work. Typical accessible routes are elevators and escalators, which can explain why the elevator and escalator bars are high relative to other entrance types, although I believe an elevator is required for a station to be rated fully ADA-accessible. 
+This alternative view shows that "Elevator" entrances tend to be linked to ADA-accessible stations. I tried to search, but I'm not sure what an "Easement" entrance may be. It seems to indicate a private access point, perhaps meant to be used for utility work. Typical accessible routes are elevators and escalators, which can explain why the elevator and escalator `ADA == TRUE` bars are high relative to other entrance types, although I believe an elevator is required for a station to be rated fully ADA-accessible. 
 
 
 ## Removing entrance info and more tidying
 
-Next, the entrance/exit columns will be removed because they are no longer useful to me, and the route columns will be wrangled into a tidy format. In order to replicate the maps in the official report, the route information is not necessary and can also be dropped at this point. However, I'm interested in how many stations are located within certain geospatial areas, and so the route columns will be carried along.  The plan, for now, is that I intend to count each train route that stops at a station individually. For example, if three train routes, such as the 4, 5, and 6 trains, all stop at one station, I would like to be able to count each of those, for a total of three, because the more trains stop in a given area, the more "accessible" or reachable by subway that area is and I want to account for that.
+Next, the entrance/exit columns will be removed because they are no longer useful to me, and the route columns will be wrangled into a tidy format. In order to replicate the maps in the official report, the route information would also not be needed and could be dropped at this point. However, I'm interested in how many stations are located within particular geospatial areas, and so the route columns will be carried along.  The plan, for now, is that I intend to count each individual train route that stops at a station. For example, if three train routes, such as the 4, 5, and 6 trains, all stop at one station, I would like to be able to count each of those, for a total of three, because the more trains stop in a given area, the more "accessible" or reachable by subway that area is and I want to account for that.
 
-With that goal in mind, let's get to tidying.
+With these goals in mind, let's get to tidying.
 
 ```{r sub_ent_tidy, comment=NA}
 sub.ent.sml <- sub.ent.w.key %>% 
