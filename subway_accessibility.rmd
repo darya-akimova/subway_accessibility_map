@@ -1584,7 +1584,7 @@ nyc.neigh.4boro %>%
     ) +
   xlab("Longitude") +
   ylab("Latitude") +
-  ggtitle("NYC Subway Station Stops") +
+  ggtitle("NYC subway station stops") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
@@ -1593,7 +1593,7 @@ nyc.neigh.4boro %>%
 
 Now that the dataset is in good shape, it's time to actually dig into it, starting with looking at how many station stops (ADA-accessible and not) are along each route:
 
-```{r analysis_by_route, comment = NA}
+```{r analysis_by_route_prep, comment = NA}
 stat.by.route <- sub.stat.num.updt %>% 
   group_by(route_name) %>% 
   summarize(
@@ -1631,17 +1631,23 @@ mean(stat.by.route$total_stat)
 stat.by.route %>% 
   ggplot(aes(rt_order, total_stat, fill = primary_trunk_line)) +
   geom_bar(stat = "identity") +
+  # dashed line for mean number of total stations
+  geom_hline(yintercept = mean(stat.by.route$total_stat), linetype = "dashed") +
   scale_fill_manual(values = subway.by.line$hexadecimal, name = "Line") +
   ylab("Total Number of Stations") +
-  xlab("Subway Route")
+  xlab("Subway Route") +
+  ggtitle("Total number of subway stations by route")
 # average number of ada-accessible stations per route:
 mean(stat.by.route$num_ada)
 stat.by.route %>% 
   ggplot(aes(rt_order, num_ada, fill = primary_trunk_line)) +
   geom_bar(stat = "identity") +
+  # dashed line for mean number of accessible stations per route
+  geom_hline(yintercept = mean(stat.by.route$num_ada), linetype = "dashed") +
   scale_fill_manual(values = subway.by.line$hexadecimal, name = "Line") +
   ylab("Number of ADA Stations") +
-  xlab("Subway Route")
+  xlab("Subway Route") +
+  ggtitle("Number of ADA-accessible subway stations by route")
 ```
 
 
@@ -1650,19 +1656,24 @@ The total number of station stops varies quite a bit between the same line route
 The number of ADA-accessible stations by route is far less than the total number of stations. By itself, this is not very informative, but let's take a look at the percent of subway stations that are ADA-accessible per route:
 
 ```{r per_ada_by_routebar, comment=NA}
+# average percent accessible statious out of total
+mean(stat.by.route$per_ada)
 stat.by.route %>% 
   ggplot(aes(rt_order, per_ada, fill = primary_trunk_line)) +
   geom_bar(stat = "identity") +
+  geom_hline(yintercept = mean(stat.by.route$per_ada), linetype = "dashed") +
   scale_fill_manual(values = subway.by.line$hexadecimal, name = "Line") +
   ylab("Percent of Stations that are ADA") +
   xlab("Subway Route")
 nrow(stat.by.route)
 stat.by.route %>% 
   filter(per_ada < 25) %>% 
-  select(route_name:per_ada)
+  select(route_name:per_ada) %>% 
+  arrange(desc(per_ada))
 stat.by.route %>% 
   filter(per_ada > 50) %>% 
-  select(route_name:per_ada)
+  select(route_name:per_ada) %>% 
+  arrange(desc(per_ada))
 ```
 
 
@@ -1673,11 +1684,14 @@ what is the relationship between the total number of subway station stops per ro
 ```{r ada_vs_tot_point, comment=NA}
 stat.by.route %>% 
   ggplot(aes(total_stat, num_ada, color = primary_trunk_line)) +
-  geom_abline(slope = 1, intercept = 0, alpha = 0.5, size = 1.5) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   geom_point(size = 3) +
   scale_color_manual(values = subway.by.line$hexadecimal, name = "Line") +
+  xlim(-5, 55) +
+  ylim(-2, 20) +
   xlab("Total Number of Stations") +
-  ylab("Number of ADA Stations")
+  ylab("Number of ADA Stations") +
+  ggtitle("Number of ADA-accessible stations vs total number of stations\nBy route")
 ```
 
 
@@ -1685,7 +1699,7 @@ Superficially, the number of ADA-accessible stations does increase with the numb
 
 What about the relationship between the percent of stations that are ada vs total number of stations, perhaps with train routes that make more stops it would be more expensive to have more ada-accessible stations.
 
-```{r comment=NA}
+```{r per_ada_vs_tot_point, comment=NA}
 stat.by.route %>% 
   ggplot(aes(total_stat, per_ada, color = primary_trunk_line, label = route_name)) +
   geom_point(size = 3) +
@@ -1769,7 +1783,8 @@ boro.stat.count %>%
   scale_fill_tableau() +
   xlab("Borough Name") +
   ylab("Total Number of Stations") +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  ggtitle("Subway station count by borough")
 ```
 
 
@@ -1863,7 +1878,8 @@ neigh.stat.count %>%
   scale_fill_tableau() +
   xlab("Borough") +
   ylab("Total Number of Stations per Neighborhood") +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  ggtitle("Number of subway stations within a neighborhood")
 neigh.stat.count %>% 
   ggplot(aes(boro_order, ada_stat, color = boro_order, fill = boro_order)) +
   geom_violin() +
@@ -1872,7 +1888,8 @@ neigh.stat.count %>%
   scale_fill_tableau() +
   xlab("Borough") +
   ylab("Number of ADA Subway Stations per Neighborhood") +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  ggtitle("Number of ADA-accessible stations per neighborhoods")
 neigh.stat.count %>% 
   ggplot(aes(boro_order, ada_percent, color = boro_order, fill = boro_order)) +
   geom_violin() +
@@ -1881,19 +1898,26 @@ neigh.stat.count %>%
   scale_fill_tableau() +
   xlab("Borough") +
   ylab("Percent ADA by Neighborhood") +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  ggtitle("Percent of accessible subway stations within a neighborhood")
 neigh.stat.count %>% 
   select(-c(not_ada:boro_order)) %>% 
-  gather(key = "count_type", value = "n", tot_stat:ada_stat) %>% 
+  rename(`Total Stations` = tot_stat, `ADA Stations` = ada_stat) %>% 
+  gather(key = "count_type", value = "n", `Total Stations`:`ADA Stations`) %>% 
   ggplot(aes(n, fill = count_type)) +
   geom_histogram(bins = 30) +
   facet_wrap(~ count_type) +
-  scale_fill_tableau()
+  scale_fill_tableau(name = "Station Type") +
+  xlab("Number of Stations per neighborhood") +
+  ylab("Count")
 # dist skewed, maybe to do with land area:
 nyc.neigh.4boro %>% 
   filter(!(str_detect(ntaname, "park") | str_detect(ntaname, "Airport"))) %>% 
   ggplot(aes(shape_area)) +
-  geom_histogram(bins = 30)
+  geom_histogram(bins = 30) +
+  xlab("Neighborhood area (sq ft)") +
+  ylab("Count") +
+  ggtitle("Distribution of neighborhood areas")
 neigh.stat.count %>% 
   inner_join(nyc.neigh.4boro, by = "ntaname") %>% 
   select(boro_order, ntaname:ada_percent, shape_area) %>%
@@ -1909,7 +1933,7 @@ neigh.stat.count %>%
   geom_violin() +
   scale_fill_tableau() +
   scale_color_tableau() +
-  facet_wrap(~ stat_type, ncol = 1, scales = "free_y") +
+  facet_wrap(~ stat_type, ncol = 2) +
   stat_summary(fun.data = data_summary, color = "black", alpha = 0.8) +
   theme(legend.position = "none") +
   xlab("Borough") +
@@ -1929,23 +1953,20 @@ nyc.neigh.4boro.count <- nyc.neigh.4boro %>%
 nyc.neigh.count.prep <- nyc.neigh.4boro.count %>% 
   # create column to fill neighborhoods on map by
   mutate(
-    `Neighborhood Type` = ifelse(
+    `Neighborhood Type` = case_when(
       # Park group:
-      str_detect(ntaname, "park"), "Park", ifelse(
-        # Airport:
-        str_detect(ntaname, "Airport"), "Airport", ifelse(
-          # Neither park nor airport, and no subway stations at all
-          !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & is.na(tot_stat), "No stations", ifelse(
-            # Neither park nor airport, has subway stations, but no ADA stations:
-            !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat < 1, "No accessible stations", ifelse(
-              # Neither park nor airport, has at least 1 ADA station:
-              !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat > 0, "At least one accessible station", "Don't know"
-              )
-            )
-          )
-        )
+      str_detect(ntaname, "park") ~ "Park", 
+      # Airport:
+      str_detect(ntaname, "Airport") ~ "Airport", 
+      # Neither park nor airport, and no subway stations at all
+      !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & is.na(tot_stat) ~ "No stations", 
+      # Neither park nor airport, has subway stations, but no ADA stations:
+      !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat < 1 ~ "No accessible stations", 
+      # Neither park nor airport, has at least 1 ADA station:
+      !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat > 0 ~ "At least one accessible station", 
+      TRUE ~ "Don't know"
       )
-    )
+  )
 # resulting breakdown for neighborhoods:
 table(nyc.neigh.count.prep$`Neighborhood Type`)
 # Map:
@@ -2002,7 +2023,7 @@ nyc.neigh.count.prep %>%
   mutate(tot_fact = cut(tot_stat, quantile(tot_stat, na.rm = TRUE), include.lowest = TRUE)) %>% 
   ggplot() +
   geom_sf(aes(fill = tot_fact), color = "black") +
-  scale_fill_viridis_d(option = "D", name = "Station Count", na.value = "gray50") +
+  scale_fill_viridis_d(option = "D", name = "Station Count Breaks", na.value = "gray50") +
   geom_sf(data = nyc.parks.air.sf, fill =  "grey30", color = "black") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
   ggtitle("Total Station Count\nBy Neighborhood")
@@ -2013,7 +2034,7 @@ nyc.neigh.count.prep %>%
     ) %>% 
   ggplot() +
   geom_sf(aes(fill = ada_fact), color = "black") +
-  scale_fill_viridis_d(option = "D", name = "Station Count", na.value = "gray50") +
+  scale_fill_viridis_d(option = "D", name = "Station Count Breaks", na.value = "gray50") +
   geom_sf(data = nyc.parks.air.sf, fill =  "grey30", color = "black") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
   ggtitle("ADA-Accessible Station Count\nBy Neighborhood")
@@ -2028,19 +2049,19 @@ nyc.neigh.notada <- nyc.neigh.count.prep %>%
 nyc.neigh.count.prep <- nyc.neigh.count.prep %>% 
   mutate(ada_percent = ifelse(ada_percent == 0, NA, ada_percent))
 nyc.neigh.count.prep$ada_per_breaks <- as.character(cut(nyc.neigh.count.prep$ada_percent, breaks = seq(0, 100, 20)))
-nyc.neigh.count.prep %>% 
+nyc.neigh.count.prep <- nyc.neigh.count.prep %>% 
   # insert the neighborhoods with subway stations (not ADA) into the fill code:
   mutate(
-    ada_per_breaks = ifelse(
-      ntacode %in% nyc.parks.air.sf$ntacode, "Park / Airport",
-      ifelse(
-        ntacode %in% nyc.neigh.notada$ntacode, "No accessible stations", ada_per_breaks
-        )
+    ada_per_breaks = case_when(
+      ntacode %in% nyc.parks.air.sf$ntacode ~ "Park / Airport",
+      ntacode %in% nyc.neigh.notada$ntacode ~ "No accessible stations",
+      TRUE ~ ada_per_breaks
       )
-    ) %>% 
+    ) 
+nyc.neigh.count.prep %>% 
   ggplot() +
   geom_sf(aes(fill = ada_per_breaks), color = "black") +
-  scale_fill_manual(values = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494", "#E69F00", "grey30"), na.value = "gray50", name = "Percent ADA") + 
+  scale_fill_manual(values = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494", "#b8652c", "grey30"), na.value = "gray50", name = "Percent ADA Breaks") + 
   theme(axis.text.x = element_blank(), axis.text.y = element_blank())
 ```
 
@@ -2049,19 +2070,14 @@ And, of course, here is the interactive version:
 
 ```{r per_ada_interactive, comment=NA}
 nyc.neigh.count.prep %>% 
-  mutate(
-    ada_per_breaks = ifelse(
-      ntacode %in% nyc.parks.air.sf$ntacode, "Park / Airport",
-      ifelse(
-        ntacode %in% nyc.neigh.notada$ntacode, "No accessible stations", ada_per_breaks
-        )
-      ),
-    # need to replace for the color fill to work correctly with mapview:
-    ada_per_breaks = replace_na(ada_per_breaks, "No stations")
-    ) %>% 
-   select(boroname, ntaname, ntacode, ada_per_breaks, tot_stat:ada_percent) %>% 
+  # need to replace for the color fill to work correctly with mapview:
+  mutate(ada_per_breaks = replace_na(ada_per_breaks, "No stations")) %>% 
+  select(boroname, ntaname, ntacode, ada_per_breaks, tot_stat:ada_percent) %>% 
   rename(`Percent ADA-Accessible` = ada_per_breaks) %>% 
-  mapview(zcol = "Percent ADA-Accessible", col.regions = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494", "#E69F00", "gray50", "grey20"))
+  mapview(
+    zcol = "Percent ADA-Accessible",
+    col.regions = c("#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494", "#b8652c", "gray50", "grey20")
+    )
 ```
 
 
@@ -2077,10 +2093,10 @@ tract.cent <- st_centroid(nyc.census.4boro)
 nyc.census.4boro %>% 
   ggplot() +
   geom_sf(color = "#BFBFBF") +
-  geom_sf(data = tract.cent, size = 1, color = "#4E79A7") +
+  geom_sf(data = tract.cent, size = 0.75, color = "#4E79A7") +
   xlab("Longitude") +
   ylab("Latitude") +
-  ggtitle("Census Tract Centroids") +
+  ggtitle("Census tract centroids") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
@@ -2102,10 +2118,10 @@ nyc.census.4boro %>%
     alpha = 0.8, color = "#F28E2B", fill = "#F28E2B"
     ) +
   # overlay subway station locations:
-  geom_sf(data = sub.sf.nyc.crs, color = "black", size = 1) +
+  geom_sf(data = sub.sf.nyc.crs, color = "black", size = 0.75) +
   xlab("Longitude") +
   ylab("Latitude") +
-  ggtitle("Centroid Buffer Example") +
+  ggtitle("Centroid buffer example") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
@@ -2130,9 +2146,7 @@ For the full join, I will break it up by borough, because all boroughs, except f
 ```{r buffer_calc, comment=NA}
 sub.sf.nyc.crs.boro <- sub.sf.nyc.crs %>% 
   inner_join(
-    sub.boro %>% 
-      st_set_geometry(NULL) %>% 
-      as_tibble() %>% 
+    sub.boro.nogeo %>% 
       select(stat_name, boroname) %>% 
       distinct(),
     by = "stat_name"
@@ -2174,7 +2188,7 @@ nyc.4boro.buff.join <- nyc.census.4boro %>%
         tot_stat = n(),
         ada_stat = sum(ada),
         not_ada = tot_stat - ada_stat,
-        ada_percent = ada_stat * 100 / tot_stat
+        ada_percent = round(ada_stat * 100 / tot_stat, 1)
       ) %>% 
       ungroup(),
     by = "boroct2010"
@@ -2197,7 +2211,8 @@ nyc.4boro.buff.join %>%
   facet_wrap(~ count_type) +
   scale_fill_tableau() +
   xlab("Number of stations") +
-  ylab("Count")
+  ylab("Count") +
+  ggtitle("Number of stations per buffer area\nHalf-mile buffer radius")
 ```
 
 
@@ -2208,10 +2223,10 @@ nyc.4boro.buff.join %>%
   mutate(tot_fact = cut(tot_stat, quantile(tot_stat, na.rm = TRUE), include.lowest = TRUE)) %>% 
   ggplot() +
   geom_sf(aes(fill = tot_fact), color = "black") +
-  scale_fill_viridis_d(option = "D", name = "Station Count", na.value = "gray50") +
+  scale_fill_viridis_d(option = "D", name = "Station Count Breaks", na.value = "gray50") +
   #geom_sf(data = nyc.parks.air.sf, fill =  "grey30", color = "black") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
-  ggtitle("Total Station Count\nBy Census Tract")
+  ggtitle("Total station count\nBy census tract")
 nyc.4boro.buff.join %>% 
   mutate(
     ada_stat = ifelse(ada_stat == 0, NA, ada_stat),
@@ -2223,7 +2238,7 @@ nyc.4boro.buff.join %>%
   scale_fill_viridis_d(option = "D", name = "Station Count", na.value = "gray50") +
   geom_sf(data = nyc.parks.air.sf, fill =  "grey30", color = "black") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
-  ggtitle("ADA-Accessible Station Count\nBy Census Tract")
+  ggtitle("ADA-Accessible station count\nBy census tract")
 ```
 
 
@@ -2272,18 +2287,15 @@ Now, to compare this analysis to the By-Neighborhood approach, let's group the t
 ```{r buffer_by_neigh, comment=NA}
 nyc.4boro.buff.join <- nyc.4boro.buff.join %>% 
     mutate(
-    color_group = ifelse(
-      str_detect(ntaname, "park"), "Park", ifelse(
-        str_detect(ntaname, "Airport"), "Airport", ifelse(
-          !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & is.na(tot_stat), "No stations", ifelse(
-            !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat < 1, "No accessible stations", ifelse(
-              !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat > 0, "At least one accessible station", "Don't know"
-              )
-            )
-          )
-        )
+    color_group = case_when(
+      str_detect(ntaname, "park") ~ "Park",
+      str_detect(ntaname, "Airport") ~ "Airport",
+      !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & is.na(tot_stat) ~ "No stations",
+      !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat < 1 ~ "No accessible stations",
+      !(str_detect(ntaname, "park") | str_detect(ntaname, "Airport")) & tot_stat > 0 & ada_stat > 0 ~ "At least one accessible station",
+      TRUE ~ "Don't know"
       )
-    ) 
+    )
 nyc.4boro.buff.join %>% 
   ggplot() +
   geom_sf(aes(fill = color_group)) +
@@ -2291,7 +2303,7 @@ nyc.4boro.buff.join %>%
   # overlay neighborhoods in black outline:
   geom_sf(data = nyc.neigh.4boro, color = "black", size = 0.5, fill = NA)  +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
-  ggtitle("NYC Census Tract Accessibility\n(Half a mile radius)")
+  ggtitle("NYC census tract accessibility\n(Half a mile radius)")
 ```
 
 As a reminder, here's the neighborhoods-based map again, with slight modifications to make it comparable:
@@ -2362,7 +2374,7 @@ access.diff %>%
   ggtitle("ADA-Accessibility Differences\nNeighborhoods vs Census Tract")
 access.diff %>% 
   ggplot() +
-  geom_sf(aes(fill = access_diff)) +
+  geom_sf(aes(fill = access_diff), size = 0.5, color = "gray80") +
   scale_fill_manual(values = c("grey30", "#7570b3", "#d95f02", "#999999", "#bae4b3", "#e7298a"), name = "Tract Type") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
   ggtitle("ADA-Accessibility Differences\nNeighborhoods vs Census Tract")
