@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 Due to the length of the project, I've broken it up into multiple sections and used tabs to condense down some of the less exciting or more repetitive sections. The tabs are meant to be navigated in order, but some, such as parts of Section 4, can be skipped without missing much.
 
+
 ## Background
 
 The initial inspiration for this work was the Data for Democracy NYC Accessibility project ([Project GitHub Repo](https://github.com/Data4Democracy/nyc-accessibility)), which focused on exploring the lack of ADA-accessible stations in the New York City subway system. For those that are unfamiliar, ADA-accessible subway stations are those that comply with the Americans with Disabilities Act of 1990. Among other requirements, they must be designed such that an individual using a wheelchair or other mobility device can get from street level to the turnstiles and onto the train. 
@@ -108,6 +109,7 @@ subway.by.line <- read_csv("./data/2018_update/nyc_subway_stations_grouped.csv")
 num.stat.by.rt.wiki <- read_csv("./data/2018_update/nyc_subway_num_stat_by_line.csv")
 ```
 
+
 Data sources: 
 
 * NYC Census Map shapefile: [NYC Department of City Planning Open Data Website](https://www1.nyc.gov/site/planning/data-maps/open-data/districts-download-metadata.page)
@@ -141,6 +143,7 @@ On top of being spatial objects, a handy feature of the `sf` format is that thes
 ```{r census_map_summary, comment=NA}
 summary(nyc.census.map)
 ```
+
 
 For example, as demonstrated above, the `nyc.census.map` object includes the tract codes, the city borough name that the census tract belongs to, as well as the spatial geometry.
 
@@ -455,6 +458,7 @@ sub.ent.sml %>%
   filter(stat_name == "ind_8 avenue_world trade center")
 ```
 
+
 This is because the World Trade Center stop is connected to the Park Place, where the 2 and 3 trains stop, and Chambers St, where the A and C stop. 
 
 If I select for the Park Place station information, it turns out that all of the trains are repeated at this station as well (and the same is true for Chambers St).
@@ -463,6 +467,7 @@ If I select for the Park Place station information, it turns out that all of the
 sub.ent.sml %>% 
   filter(stat_name == "irt_clark_park place")
 ```
+
 
 Thankfully, the ADA rating is separate from the World Trade Center station and is correctly marked as `FALSE` at Park Place. However, the issue is that all of the trains are also listed as stopping at this station, as well as the 1 train even though the 1 route should not follow the 2 and 3 in this part of Manhattan.
 
@@ -578,7 +583,6 @@ At this point, I'm starting to think that I'll need to check through the station
 
 ## ADA fixes and hitting a wall
 
-
 Changes to make based on the `ada_notes`:
 
 * ind_8 avenue_50th st / TRUE / Southbound Only: Leave as ada = TRUE (no changes)
@@ -647,6 +651,7 @@ sub.ent.ada.updt %>%
   filter(route_name == "GS")
 ```
 
+
 Got rid of a few rows by eliminating the redundant S route, and removed the `ada_notes` column. 
 
 Now back to the earlier issue of trains being assigned to subway stations that they do not stop at and all the previous problems brought up earlier.
@@ -692,10 +697,9 @@ Problems with Solution 2: Will require a lot of tedious manual work, and there's
 
 # Manual data cleaning {.tabset .tabset-fade .tabset-pills}
 
-
 ## Reasoning and Resources
 
-I chose Solution 2 because both approaches would require manual validation and this way would get it over with. However, going through line by line turned out to be less tedious than I expected because routes in the same primary trunk line tended to need the same corrections (removing duplicate stations, for example). Also, most of the subway stations were accurately labeled according to the primary trunk line 3-letter code (IRT, IND, and so on), which helped thin out the list of stops. The manual cleanup was not very pretty, but it got the job done.
+I chose Solution 2 because both approaches would require manual validation and this way would get it over with. However, going through line by line turned out to be less tedious than I expected because routes in the same primary trunk line tended to need similar corrections (removing duplicate stations, for example). Also, most of the subway stations were accurately labeled according to the primary trunk line 3-letter code (IRT, IND, and so on), which helped thin out the list of stops. The manual cleanup was not very pretty, but it got the job done.
 
 These tools helped quite a bit in the process:
 
@@ -703,13 +707,13 @@ These tools helped quite a bit in the process:
 * [NYC Subway Map](http://web.mta.info/maps/submap.html)
 * [Route lists (G train example)](http://web.mta.info/nyct/service/gline.htm)
 
-Disclaimer: Subway service routes can be very different at regular, rush-hour, late-night, and weekend times. For sanity, I based the route/station assignments to meet the regular Wikipedia station stop counts for most lines, and on the routes on the MTA website list. However, service patterns weren't very clear to me for some of the trains, so apologies for any errors.
+Disclaimer: Subway service routes can be very different at regular, rush-hour, late-night, and weekend times. For sanity, I based the route/station assignments to meet the regular Wikipedia station stop counts for most lines, and on the routes on the MTA website list. However, service patterns weren't clear to me for some of the trains, so apologies for any errors.
 
 
 ## By lowest number of stations
 
-
 Starting slow, with the shuttle routes:
+
 
 ### Shuttles
 
@@ -740,6 +744,12 @@ sub.stat.num.updt <- sub.stat.num.updt %>%
   filter(!(route_name == "FS" & (str_detect(stat_name, "irt") | str_detect(stat_name, "ind"))))
 sub.stat.num.updt %>% 
   filter(route_name == "FS")
+```
+
+
+Next, based on lowest number of stops:
+
+```{r after_shuttle, comment=NA}
 sub.stat.num.updt %>% 
   group_by(route_name) %>% 
   count() %>% 
@@ -823,7 +833,7 @@ sub.stat.num.updt %>%
 ```
 
 
-The station count for Z is now correct, next targets:
+The station count for Z is now correct, next:
 
 ```{r after_z_and_g, comment=NA}
 sub.stat.num.updt %>% 
@@ -934,6 +944,7 @@ sub.stat.num.updt %>%
   filter(route_name == "L") %>% 
   nrow()
 ```
+
 
 Next:
 
@@ -1212,6 +1223,7 @@ sub.stat.num.updt %>%
   filter(n != num_stations_norm & route_name != "B")
 ```
 
+
 D/F/M next.
 
 
@@ -1312,6 +1324,7 @@ sub.stat.num.updt %>%
 
 
 1/2/3 next:
+
 
 ### 1 train
 
@@ -1498,6 +1511,7 @@ sub.stat.num.updt <- sub.stat.num.updt %>%
       # add in 3 new 2nd Ave stops at 72nd St, 86th St, and 96th St
       bind_rows(
         tibble(
+          # assign names to match existing pattern
           stat_name = c("ind_2 avenue_72nd st", "ind_2 avenue_86th st", "ind_2 avenue_96th st"), 
           # all are ADA = TRUE
           ada = rep(TRUE, 3), 
@@ -1550,17 +1564,25 @@ The final row count, after removing all of those extra stations, is 750.
 
 # Analysis and Visualization
 
-Now that the subway station dataset is relatively clean and tidy, it's possible to finally move on to do some geospatial analysis with it and the NYC shapefiles. Before that, although the station dataset includes the station spatial coordinates, it is not a spatial object in the same sense that the map shapefiles are. The latitude and longitude will have to be interpreted through a coordinate reference system. Earlier, I had changed the reference system of one maps, but here I will turn the entire subway dataset into a sf spatial object for further analysis. This is done by first converting it into a spatial object, which needs the correct crs information. Then, the crs of the new spatial object can be converted to match the NYC map shapefile units.
+As a result of the data cleaning process:
+
+
+* Over 200 duplicate or outdated subway station-train route associations have been removed.
+* Some station ADA-accessibility ratings have been updated from `FALSE` to `TRUE`, all of which had no indication that changes were under construction and were not mentioned in the `ada_notes` column.
+
+Now that the subway station dataset is relatively clean and tidy, it’s possible to finally move on to do some geospatial analysis with it and the NYC shapefiles. Although the station dataset includes the geographical station coordinates, it is not a spatial object in the same sense that the map shapefiles are. Earlier, I had changed the reference system of one of the maps to match the subway data, but here I will turn the entire subway dataset into a sf spatial object for further analysis. Then, the CRS of the new spatial object will be converted to match the NYC map shapefile units.
 
 ```{r convert_sub_df_to_sf, comment=NA}
-sub.cln.sf <- st_as_sf(sub.stat.num.updt, coords = c("avg_stat_long", "avg_stat_lat"), crs = "+init=epsg:4326")
-head(sub.cln.sf)
-sub.sf.nyc.crs <- st_transform(sub.cln.sf, crs = st_crs(nyc.census.4boro))
+# convert the subway data to a spatial object and assign it the most likely CRS:
+sub.sf.nyc.crs <- st_as_sf(sub.stat.num.updt, coords = c("avg_stat_long", "avg_stat_lat"), crs = "+init=epsg:4326")
+head(sub.sf.nyc.crs)
+# change the CRS to match the map shapefiles:
+sub.sf.nyc.crs <- st_transform(sub.sf.nyc.crs, crs = st_crs(nyc.census.4boro))
 head(sub.sf.nyc.crs)
 ```
 
 
-The subway station stop dataset now has a geometry column with in US foot units and can be combined and layered with the map shapefiles for visualization and spatial analysis purposes. 
+Note the change in the geometry column after the `st_transform()` call - the subway station stop dataset now has a geometry column in US foot units and can be combined and layered with the map shapefiles for visualization and spatial analysis purposes. 
 
 Here are the station stops visualized over the NYC neighborhoods map, colored according to their traditional service line colors:
 
@@ -1590,7 +1612,7 @@ nyc.neigh.4boro %>%
 
 ## By Route
 
-Now that the dataset is in good shape, it's time to actually dig into it, starting with looking at how many station stops (ADA-accessible and not) are along each route:
+Let's first look at how many station stops (ADA-accessible or not) are along each train route.
 
 ```{r analysis_by_route_prep, comment = NA}
 stat.by.route <- sub.stat.num.updt %>% 
@@ -1601,16 +1623,10 @@ stat.by.route <- sub.stat.num.updt %>%
     # ada is TRUE/FALSE - use this to get total number of ada stations by route:
     num_ada = sum(ada),
     # percent of total num of station stops that are ada, by route:
-    per_ada = num_ada * 100 / total_stat
+    per_ada = round(num_ada * 100 / total_stat, 2)
   ) %>% 
   # convert the 3 shuttles into route_name == "S", to match other datasets
-  mutate(
-    rt_mod = ifelse(
-      route_name == "GS" | route_name == "FS" | route_name == "H",
-      "S",
-      route_name
-      )
-    ) %>% 
+  mutate(rt_mod = ifelse(route_name == "GS" | route_name == "FS" | route_name == "H", "S", route_name)) %>% 
   # join to get subway route groupings, colors
   left_join(sub.line.tidy, by = c("rt_mod" = "route_name")) %>% 
   arrange(primary_trunk_line, route_name)
@@ -1622,7 +1638,7 @@ subway.by.line <- subway.by.line %>%
 ```
 
 
-Everything is prepped, so let's plot, starting with a bar graph of the total number and the number of ADA accessible subway station stops by route. The bars will be colored by their traditional NYC subway colors:
+The summary is prepped, so it's time to plot, starting with a bar graph of the total number and the number of ADA accessible subway station stops by route. The bars will be colored by their traditional NYC subway colors.
 
 ```{r stat_by_route_bar, comment=NA}
 # average number of subway stations per route
@@ -1632,10 +1648,10 @@ stat.by.route %>%
   geom_bar(stat = "identity") +
   # dashed line for mean number of total stations
   geom_hline(yintercept = mean(stat.by.route$total_stat), linetype = "dashed") +
-  scale_fill_manual(values = subway.by.line$hexadecimal, name = "Line") +
+  scale_fill_manual(values = subway.by.line$hexadecimal, name = "Trunk Line") +
   ylab("Total number of stations") +
   xlab("Subway route") +
-  ggtitle("Total number of subway stations by route")
+  ggtitle("Total number of subway stations per route")
 # average number of ada-accessible stations per route:
 mean(stat.by.route$num_ada)
 stat.by.route %>% 
@@ -1643,75 +1659,86 @@ stat.by.route %>%
   geom_bar(stat = "identity") +
   # dashed line for mean number of accessible stations per route
   geom_hline(yintercept = mean(stat.by.route$num_ada), linetype = "dashed") +
-  scale_fill_manual(values = subway.by.line$hexadecimal, name = "Line") +
+  scale_fill_manual(values = subway.by.line$hexadecimal, name = "Trunk Line") +
   ylab("Number of ADA stations") +
   xlab("Subway route") +
-  ggtitle("Number of ADA-accessible subway stations by route")
+  ggtitle("Number of ADA-accessible subway stations per route")
 ```
 
 
-The total number of station stops varies quite a bit between the same line routes because some are local and others are express in stretches. The shuttles have the least number of station stops, they are relatively short. The L, G, and 7 routes are they only routes in their line groupings, but they still get their own colors.
+There is an average of 30 stops (of any kind) and 9 ADA-accessible stations per train route; these values are represented by the dashed lines in the plots above. 
 
-The number of ADA-accessible stations by route is far less than the total number of stations. By itself, this is not very informative, but let's take a look at the percent of subway stations that are ADA-accessible per route:
+The number of ADA-accessible stations by route is far less than the total number of stations, which is not unexpected. Let's take a look at the percent of subway stations that are ADA-accessible per route.
 
-```{r per_ada_by_routebar, comment=NA}
+```{r per_ada_by_route_plot, comment=NA}
 # average percent accessible statious out of total
 mean(stat.by.route$per_ada)
 stat.by.route %>% 
   ggplot(aes(rt_order, per_ada, fill = primary_trunk_line)) +
   geom_bar(stat = "identity") +
   geom_hline(yintercept = mean(stat.by.route$per_ada), linetype = "dashed") +
-  scale_fill_manual(values = subway.by.line$hexadecimal, name = "Line") +
+  scale_fill_manual(values = subway.by.line$hexadecimal, name = "Trunk Line") +
   ylab("Percent of stations that are ADA") +
-  xlab("Subway route")
-nrow(stat.by.route)
+  xlab("Subway route") +
+  ggtitle("Percent of ADA-accessible subway stations per route")
+```
+
+
+On average, 30% of stations along a subway line are accessible. The Eight Ave, Sixth Ave, Broadway-Seventh Ave, Flushing, and Lexington Ave lines hover close to the mean.
+
+Out of the 25 subway lines, which are worse or better than expected?
+
+```{r routes_per_ada, comment=NA}
+# lower accessibility
 stat.by.route %>% 
-  filter(per_ada < 25) %>% 
+  filter(per_ada < 20) %>% 
   select(route_name:per_ada) %>% 
   arrange(desc(per_ada))
+# higher accessibility
 stat.by.route %>% 
-  filter(per_ada > 50) %>% 
+  filter(per_ada > 40) %>% 
   select(route_name:per_ada) %>% 
   arrange(desc(per_ada))
 ```
 
 
-10 out of the 25 total routes have fewer than 25% ada-accessible station stops and only 2 trains, one of which is a shuttle train with 4 total stops, make it above 50% accessibility. 
+10 out of the 25 routes have fewer than 25% ADA-accessible station stops, with the N, J, Z, and G suffering from particularly poor accessibility. Only 2 trains, one of which is a shuttle train with 4 total stops, make it above 50% mark. 
 
-what is the relationship between the total number of subway station stops per route with the proprotion of stations that are ADA-accessible, imaginably that would have an impact.
+I imagine that there should be a superficial relationship between the number of total and accessible stations.
 
 ```{r ada_vs_tot_point, comment=NA}
 stat.by.route %>% 
   ggplot(aes(total_stat, num_ada, color = primary_trunk_line)) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   geom_point(size = 3) +
-  scale_color_manual(values = subway.by.line$hexadecimal, name = "Line") +
+  scale_color_manual(values = subway.by.line$hexadecimal, name = "Trunk Line") +
   xlim(-5, 55) +
   ylim(-2, 20) +
   xlab("Total number of stations") +
   ylab("Number of ADA stations") +
-  ggtitle("Number of ADA-accessible stations vs total number of stations\nBy route")
+  ggtitle("Number of ADA-accessible stations vs total number of stations\nPer route")
 ```
 
 
-Superficially, the number of ADA-accessible stations does increase with the number of total station stops per route, however that increase is far less than unity, which is represented by the grey line in the plot above. 
+Indeed, the number of ADA-accessible stations does increase with the number of total station stops per route. However, that increase is far less than unity, which is represented by the dashed line in the plot above.  
 
-What about the relationship between the percent of stations that are ada vs total number of stations, perhaps with train routes that make more stops it would be more expensive to have more ada-accessible stations.
+Perhaps for train routes that make more stops, it would be more expensive to have many ADA-accessible stations. What is the relationship between the total number of subway station stops per route with the proportion of stations that are ADA-accessible?
 
 ```{r per_ada_vs_tot_point, comment=NA}
 stat.by.route %>% 
   ggplot(aes(total_stat, per_ada, color = primary_trunk_line, label = route_name)) +
   geom_point(size = 3) +
-  scale_color_manual(values = subway.by.line$hexadecimal, name = "Line") +
+  scale_color_manual(values = subway.by.line$hexadecimal, name = "Trunk Line") +
   geom_text(hjust = 0, vjust = 0, check_overlap = TRUE, nudge_y = 1.5) +
   xlab("Total number of stations") +
-  ylab("Percent of stations that are ADA")
+  ylab("Percent of stations that are ADA") +
+  ggtitle("Percent of ADA-accessible stations vs total number of stations\nPer route")
 ```
 
 
-The result is something of a funnel shape, and there's not an obvious relationship.
+The result is something of a funnel shape with a lot of variation in the lines with fewer stops, and there's not a clear relationship.
 
-Another way visualization method that could be used to compare the total number of stations and the number that are ada accessible is a barbell plot. First, the data frame is reorders by the total number of stations per route, in order to make lines with a similar number of stops easier to compare. Then the total number of stations can be plotted in blue, the number of ada-accessible stations in orange, and a line segment can be drawn to connect the two points. The longer the line segment, the greater the difference between the two numbers.
+Another visualization method that could be used to compare the total number of stations to the number that are ADA-accessible is a barbell plot. First, the data frame is reordered by the total number of stations per route, to make lines with a similar number of stops easier to compare by eye. Then the total number of stations can be plotted in orange, the number of ADA-accessible stations in blue, and a line segment drawn to connect the two points. The longer the line segment, the greater the difference between the two numbers.
 
 ```{r barbell_stat_plot, comment=NA}
 stat.by.route <- stat.by.route %>% 
@@ -1721,9 +1748,9 @@ stat.by.route %>%
   ggplot(aes(total_stat_order, total_stat)) +
   geom_segment(aes(x = total_stat_order, xend = total_stat_order, y = num_ada, yend = total_stat), size = 1, alpha= 0.5, color = "gray60") +
   # total number of station stops on route in orange
-  geom_point(size = 3, color = "#fc8d59") +
+  geom_point(size = 3, color = "#E69F00") +
   # number of ada-accessible station stops on route in blue
-  geom_point(aes(total_stat_order, num_ada), size = 3, color = "#91bfdb") +
+  geom_point(aes(total_stat_order, num_ada), size = 3, color = "#56B4E9") +
   xlab("Route name") +
   ylab("Number of stations") +
   ggtitle("Total number of stations (orange) vs number of ADA-accessible stations (blue)") +
@@ -1731,19 +1758,19 @@ stat.by.route %>%
 ```
 
 
-This can be another handy way to notice a few things, such as that the E, 7, Z, and G all have about the same number of total stations, but a very different number of ADA-accessible stations.
+With a barbell plot, it's possible to make some new observations, such as that the E, 7, Z, and G trains all have about the same number of total stations, but a very different number of ADA-accessible stations.
 
 
 ## By Borough
 
-Moving on to the geospatial side of things, let's first explore and compare subway accessibility across the 4 boroughs: Bronx, Brooklyn, Manhattan, and Queens. This is where the `sf` package starts to become really useful. Earlier, I had created the object `sub.sf.nyc.crs` which contains the subway station data and looks like this:
+Moving on to the spatial side of things, let's first explore and compare subway accessibility across the 4 boroughs: Bronx, Brooklyn, Manhattan, and Queens. This is where the `sf` package starts to become especially useful. Earlier, I had created the object `sub.sf.nyc.crs` which contains the subway station data and looks like this:
 
 ```{r comment=NA}
 head(sub.sf.nyc.crs)
 ```
 
 
-What is missing is a borough assignment for each station. While one option is to find another dataset that matches subway stations to borough, or to try and create complex rules to assign stations a borough by latitude and longitude, instead I can take advantage of the spatial join `st_join` function from the `sf` package. Because subway dataset and the NYC maps now have the same CRS, a spatial join can be used to merge the data based on geometry.
+What is missing for this section is a borough assignment for each station. While one option is to find another dataset that matches subway stations to a borough or to try and create complex rules to assign stations by latitude and longitude, instead I can take advantage of the spatial join `st_join()` function from the `sf` package. Because subway dataset and the NYC maps now have the same CRS, a spatial join can be used to merge the data based on geometry.
 
 ```{r sub_boro_glimpse, comment=NA}
 sub.boro <- st_join(sub.sf.nyc.crs, nyc.census.4boro)
@@ -1751,7 +1778,7 @@ head(sub.boro)
 ```
 
 
-All of the information that was in the NYC census shapefile has been merged with the subway station stops data. For now, since the focus of this section is only on the borough summary data, I'll remove the geometry information and columns relating to neighborhoods and census tracts:
+All of the information that was in the NYC census shapefile has been merged with the subway station stops data. For now, since the focus of this section is only on the borough summary data, I'll remove the geometry information and columns relating to neighborhoods and census tracts.
 
 ```{r sub_boro_summary, comment=NA}
 sub.boro.nogeo <- sub.boro %>% 
@@ -1783,29 +1810,16 @@ boro.stat.count %>%
   xlab("Borough") +
   ylab("Total number of stations") +
   theme(legend.position = "none") +
-  ggtitle("Subway station count by borough")
+  ggtitle("Subway station stop count by borough")
 ```
 
 
-Could quickly compare the [population estimates per borough (2017 estimates from Wikipedia)](https://en.wikipedia.org/wiki/Demographics_of_New_York_City) to the number of subway stops. 
+Perhaps unsurprisingly, Manhattan has the highest count of subway stations, followed by Brooklyn, then Queens and lastly the Bronx. Even though more people live in Brooklyn and Queens, Manhattan is, to some extent, the tourist and economic hub of the city where many people visit and work. One reason for this is the way that I have chosen to count subway stations. By counting each route stop individually, even if they stop at the same physical subway station, the number becomes very high because all subway station lines, with the exception of 2 shuttles and the G, pass through Manhattan and make many stops, typically going along the length of the island and making may stops. 
 
-```{r boro_pop_comp, comment=NA}
-boro.pop.est2017 <- tibble(
-  boroname = c("Bronx", "Brooklyn", "Manhattan", "Queens"),
-  # from wikipedia, in millions
-  pop_est = c(1.47, 2.65, 1.66, 2.36)
-  )
-# quick comparison: 
-boro.stat.count %>% 
-  inner_join(boro.pop.est2017, by = "boroname") %>% 
-  select(boroname:tot_stat, pop_est)
-```
-
-
-Manhattan has the highest number of subway stations, followed by Brooklyn. This may be the case because, even though more people live in Brooklyn and Queens, Manhattan is to some extent, the economic and commercial hub of the city, where people many people work. Manhattan has the highest number of subway stations, but has the third highest population. Of course, that doesn't say much because Manhattan is also arguably the commerce center of NYC and many people work there while living in the outer boroughs or outside the city.
-
+What about the number of ADA-accessible subway stations across the boroughs?
 
 ```{r boro_ada_plots, comment=NA}
+# dodge view
 boro.stat.count %>% 
   select(-c(tot_stat, ada_percent)) %>% 
   gather("stat_type", "num_stat", ada_stat:not_ada) %>% 
@@ -1815,7 +1829,8 @@ boro.stat.count %>%
   scale_fill_tableau(name = "Station Type") +
   xlab("Borough") +
   ylab("Number of subway stations") +
-  ggtitle("Station count by borough")
+  ggtitle("Station stop count by borough")
+# fill view
 boro.stat.count %>% 
   select(-c(tot_stat, ada_percent)) %>% 
   gather("stat_type", "num_stat", ada_stat:not_ada) %>% 
@@ -1825,10 +1840,11 @@ boro.stat.count %>%
   scale_fill_tableau(name = "Station Type") +
   xlab("Borough") +
   ylab("Proportion") +
-  ggtitle("Station count by borough\n(Bar Fill)")
+  ggtitle("Station stop count by borough\n(Bar Fill)")
 ```
 
-Manhattan has by far, the highest number of accessible subway route stations. One reason for this is the way that I have chosen to count subway stations. By counting each route stop individually, even if they stop at the same physical subway station, the number becomes very high because all subway station lines, with the exception of 2 shuttles and the G, pass through Manhattan and make many stops, typically going along the length of the island and making may stops. The proportion of ADA-accessible stations is higher in Manhattan than in the other 3 boroughs as well. 
+
+Manhattan has by far, the highest number of accessible subway route stations. The proportion of ADA-accessible stations is higher in Manhattan than in the other 3 boroughs as well. 
 
 
 ## By Neighborhood
@@ -2001,7 +2017,6 @@ nyc.neigh.count.prep %>%
 
 Above, I blocked out the parks and airports using a separate column assignment, but, for visualization purposes, the ggplot2 principle of layering objects can also beused to block them out. An alternative method to blocking out different regions is to simply create separate objects for them, such as how I block out the parks below:
 
-
 ```{r neigh_count_plots, comment=NA, fig.height=8, fig.width=8}
 nyc.parks.air.sf <- nyc.census.4boro %>% 
   filter(str_detect(ntaname, "park") | str_detect(ntaname, "Airport"))
@@ -2106,6 +2121,7 @@ nyc.census.4boro %>%
   ggtitle("Census tract centroids") + 
   theme(axis.text.x = element_blank(), axis.text.y = element_blank())
 ```
+
 
 Then, those centroid points can be used as the center to draw a circle with a chosen radius, specified in feet with the `dist` argument in the `st_buffer` function call below. I chose to draw buffers with a half-mile radius, or 2,640 ft, which may even be too generous of a radius for someone getting around in a wheelchair.
 
@@ -2420,7 +2436,9 @@ nyc.4boro.buff.join %>%
   theme(axis.text.x = element_blank(), axis.text.y = element_blank())
 ```
 
+
 An interesting tidbit is that the the areas where the subway lines end in the outer boroughs tend to have the maximum Percent ADA Accessibility, as the terminal stations tend to be ADA-Accessible. But overall, large swaths of south Brooklyn, East Bronx, and Queens are severely underserviced by accessible subway stations.
+
 
 # Conclusion
 
