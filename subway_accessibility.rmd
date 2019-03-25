@@ -64,7 +64,7 @@ In the end, the main data science-related skills that are the focus of this proj
 * Geospatial analysis in R - mapping, spatial joins, converting non-spatial data into a spatial format, and more, mainly with the help of the [sf package](https://cran.r-project.org/web/packages/sf/index.html). As an aside, this [DataCamp course on the sf package, led by Zev Ross](https://www.datacamp.com/courses/spatial-analysis-in-r-with-sf-and-raster), was immensely helpful in this regard.
 
 
-# Setup {.tabset .tabset-fade .tabset-pills}
+# Setup
 
 ## Packages
 
@@ -97,7 +97,6 @@ Datasets, in `.csv` format:
 * `subway.ent.exit`: The Subway Entrances and Exits dataset that provides information about what train routes stop at each station, whether the stations are ADA-accessible or not, as well as the station latitude and longitude coordinates, but in a non-spatial format with no coordinate reference system (CRS).   
 * `subway.by.line`: In NYC, the subway routes are grouped into "trunk lines", typically based on their route through Manhattan, and the grouping can indicate which trains share many of the same station stops. Each trunk line also has its own distinct assigned color that appears on the subway route symbols. This dataset lists the routes that belong to each trunk line and their respective color codes.
 * `num.stat.by.rt.wiki`: This is a list of the number of station stops by route, according to their Wikipedia pages. The data will be used later to clean the subway entrances and exits dataset. NYC subway service changes over the course of the day and the weekend, with some lines switching from express to local or going out of service altogether. In this analysis, I will be focusing on the weekday rush-hour service because, in theory, that is when the most number of people should be using the subway. 
-
 
 ```{r data_import, comment=NA}
 ### shapefiles ###
@@ -1857,7 +1856,9 @@ Manhattan has by far, the highest number of accessible subway route stations. Th
 
 ## By Neighborhood
 
-Now to zoom in a bit more in terms of spatial scale, let's look at subway stations by neighborhood. I will use the same data frame as the one used for the borough comparison, but now I will instead group by neighborhood to calculate the same summary statistics on the subway station stop-route associations as before. I also group by borough, which does not add anything since the neighborhood names (in the ntanames column) are unique, but it is an easy way to carry along the neighborhood borough names for analysis down the line.
+Now to zoom in a bit more in terms of spatial scale, let’s look at subway station stops by neighborhood and finally approach one of the primary aims of this project, which is to recreate the accessibility map featured in the NYC Comptroller report. 
+
+The data frame that was created for the borough comparison will be used again, but this time the summary statistics will be calculated on a smaller geographical scale with a neighborhood grouping. The `group_by()` call will also include the boroughs, which does not add to the groups because the neighborhood names in the `ntanames` column are unique, but it is an easy way to carry along the borough-neighborhood data for analysis down the line.
 
 ```{r by_neighborhood, comment=NA}
 neigh.stat.count <- sub.boro.nogeo %>% 
@@ -1867,11 +1868,26 @@ neigh.stat.count <- sub.boro.nogeo %>%
     tot_stat = n(),
     ada_stat = sum(ada),
     not_ada = tot_stat - ada_stat,
-    ada_percent = ada_stat * 100 / tot_stat
-    ) %>% 
-  # plot order column, same order as for the borough analysis (total station count)
-  mutate(boro_order = factor(boroname, levels = boro.stat.count$boroname, labels = c("Manhattan", "Brooklyn", "Queens", "Bronx"))) %>% 
-  ungroup()
+    ada_percent = round(ada_stat * 100 / tot_stat, 2)
+    ) %>%
+  ungroup() %>% 
+  # add in neighborhoods with no subway stations
+  bind_rows(
+    nyc.neigh.4boro %>% 
+    st_set_geometry(NULL) %>% 
+    as_tibble() %>% 
+    filter(!(ntaname %in% sub.boro.nogeo$ntaname)) %>% 
+    select(boroname, ntaname) %>% 
+    mutate(
+      tot_stat = 0,
+      ada_stat = 0,
+      not_ada = 0, 
+      ada_percent = NA
+    )
+  ) %>% 
+  # plot order column, same order as for the borough analysis (total count)
+  mutate(boro_order = factor(boroname, levels = boro.stat.count$boroname, labels = c("Manhattan", "Brooklyn", "Queens", "Bronx"))) 
+
 # calculate some summary stats:
 neigh.stat.count %>% 
   group_by(boro_order) %>% 
@@ -1888,11 +1904,11 @@ neigh.stat.count %>%
 ```
 
 
-Looking at the borough averages for the number of total and ADA-accessible subway station stops per neighborhood reinforces the conclusion from the previous section that 
+Looking at the borough averages for the number of total and ADA-accessible subway station stops per neighborhood reinforces the conclusion from the previous section that Manhattan has, on average, more subway station stops. The difference between the means and medians suggests that the distribution of this data might be skewed, but let's take a look.
 
-I got the inspiration from the [STHDA website](http://www.sthda.com/english/wiki/ggplot2-violin-plot-quick-start-guide-r-software-and-data-visualization), which has many helpful tutorials on ggplot2 (as well as other topics).
+Violin plots are helpful tools for showing the data distribution. If you're not familiar with this plot style, think of it as a density plot reflected across the x-axis and flipped sideways. The following violin plots were inspired by the [STHDA violin plot tutorial](http://www.sthda.com/english/wiki/ggplot2-violin-plot-quick-start-guide-r-software-and-data-visualization), which has many helpful guides on ggplot2 (as well as other topics). The `data_summary` function is used to plot the mean and the standard deviation over the violin plots to provide more information about the distribution of the data.
 
-```{r neigh_violin_plots, comment=NA}
+```{r neigh_count_violin_plots, comment=NA}
 data_summary <- function(x) {
    m <- mean(x)
    ymin <- m - sd(x)
@@ -1906,9 +1922,9 @@ neigh.stat.count %>%
   scale_color_tableau() +
   scale_fill_tableau() +
   xlab("Borough") +
-  ylab("Count of station stops per neighborhood") +
+  ylab("Count per neighborhood") +
   theme(legend.position = "none") +
-  ggtitle("Total number of subway station stops within a neighborhood")
+  ggtitle("Number of subway station stops within a neighborhood\nAll stations")
 neigh.stat.count %>% 
   ggplot(aes(boro_order, ada_stat, color = boro_order, fill = boro_order)) +
   geom_violin() +
@@ -1916,9 +1932,15 @@ neigh.stat.count %>%
   scale_color_tableau() +
   scale_fill_tableau() +
   xlab("Borough") +
-  ylab("Count of station stops per neighborhood") +
+  ylab("Count per neighborhood") +
   theme(legend.position = "none") +
-  ggtitle("Number of ADA-accessible station stops within a neighborhood")
+  ggtitle("Number of subway station stops within a neighborhood\nADA-accessible stations only")
+```
+
+
+All of the distributions for both types of stations are right skewed, with Manhattan having the longest tail, which means that there is a small number of neighborhoods with high counts. The heavy distribution towards zero, such as the Bronx data in either plot, 
+
+```{r neigh_per_violin_plots, comment=NA}
 neigh.stat.count %>% 
   ggplot(aes(boro_order, ada_percent, color = boro_order, fill = boro_order)) +
   geom_violin() +
@@ -1992,7 +2014,8 @@ Now to tackle the original problem, to recreate the NYC neighborhoods map, where
 nyc.neigh.4boro.count <- nyc.neigh.4boro %>% 
   full_join(
     neigh.stat.count %>% 
-      select(-boroname),
+      select(-boroname) %>% 
+      filter(ntaname %in% sub.boro.nogeo$ntaname),
     by = "ntaname"
   )
 nyc.neigh.count.prep <- nyc.neigh.4boro.count %>% 
@@ -2262,7 +2285,6 @@ nyc.4boro.buff.join %>%
   ggplot() +
   geom_sf(aes(fill = tot_fact), color = "black") +
   scale_fill_viridis_d(option = "D", name = "Station Count Quantiles", na.value = "gray50") +
-  #geom_sf(data = nyc.parks.air.sf, fill =  "grey30", color = "black") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
   ggtitle("Station stops per buffer area\nAll stations")
 nyc.4boro.buff.join %>% 
@@ -2274,7 +2296,6 @@ nyc.4boro.buff.join %>%
   ggplot() +
   geom_sf(aes(fill = ada_fact), color = "black") +
   scale_fill_viridis_d(option = "D", name = "Station Count Breaks", na.value = "gray50") +
-  geom_sf(data = nyc.parks.air.sf, fill =  "grey30", color = "black") +
   theme(axis.text.x = element_blank(), axis.text.y = element_blank()) +
   ggtitle("Station stops per buffer area\nADA-accessible only")
 ```
